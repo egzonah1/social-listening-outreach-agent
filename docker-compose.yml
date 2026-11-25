@@ -1,0 +1,24 @@
+# Local development services. Start with:  docker compose up -d
+services:
+  db:
+    image: postgres:17
+    container_name: outreach-db
+    environment:
+      POSTGRES_USER: outreach
+      POSTGRES_PASSWORD: outreach  # local only; production uses Neon
+      POSTGRES_DB: outreach
+    ports:
+      # 5433 on the host avoids clashing with a locally installed PostgreSQL on 5432.
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Creates the extra `outreach_test` database used by pytest.
+      - ./scripts/create-test-db.sql:/docker-entrypoint-initdb.d/create-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U outreach"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:

@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     app_env: Literal["development", "test", "production"] = "development"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
 
+    # Local default matches docker-compose.yml. Production sets DATABASE_URL to Neon.
+    database_url: str = "postgresql+psycopg://outreach:outreach@localhost:5433/outreach"
+
     # Secrets use SecretStr so they never appear in logs or error messages.
     anthropic_api_key: SecretStr | None = None
     claude_draft_model: str = "claude-opus-5-5"

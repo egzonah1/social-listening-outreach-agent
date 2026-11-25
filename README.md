@@ -20,24 +20,36 @@ Work in progress. This README grows with the project.
 | Frontend | React, TypeScript, Vite, Tailwind CSS, shadcn/ui, TanStack Query |
 | Backend | Python 3.12, FastAPI, Pydantic, SQLAlchemy, Alembic |
 | Database | PostgreSQL |
-| AI | Claude API (Opus 5.5 for drafting, Haiku 5.5 for triage) |
 | Data sources | Bluesky (official AT Protocol API), Mastodon hashtags, labelled sample data |
 | Hosting | Google Cloud Run + Neon Postgres |
 
 ## Run the backend locally (Windows, Git Bash)
 
+Prerequisites: Python 3.12+, Docker Desktop (running).
+
 ```bash
+# 1. Start Postgres (from the repo root)
+docker compose up -d
+
+# 2. Install the backend
 cd backend
 python -m venv .venv
 source .venv/Scripts/activate
 pip install -e ".[dev]"
+
+# 3. Create the database tables
+alembic upgrade head
+
+# 4. Run the API
 uvicorn app.main:app --reload
 ```
 
 Then open http://127.0.0.1:8000/api/health and http://127.0.0.1:8000/docs.
 
-Run the tests:
+Run the checks (Postgres must be running; tests use the separate `outreach_test` database):
 
 ```bash
 pytest
+ruff check .
+mypy app tests migrations
 ```

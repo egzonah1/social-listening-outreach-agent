@@ -8,12 +8,15 @@ dependencies = [
     "uvicorn[standard]>=0.30",
     "pydantic>=2.8",
     "pydantic-settings>=2.4",
+    "sqlalchemy>=2.0.36",
+    "alembic>=1.14",
+    "psycopg[binary]>=3.2",
+    "httpx2>=2.16",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3",
-    "httpx2>=2.16",  # used by FastAPI's TestClient
     "ruff>=0.6",
     "mypy>=1.11",
 ]
@@ -24,6 +27,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["app*"]
+
+[tool.setuptools.package-data]
+app = ["connectors/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
