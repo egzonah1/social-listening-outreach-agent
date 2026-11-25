@@ -8,7 +8,7 @@ settings. Uvicorn runs the module-level `app` below.
 from fastapi import FastAPI
 
 from app import __version__
-from app.api.routes import health
+from app.api.routes import campaigns, health
 from app.core.config import get_settings
 
 
@@ -22,6 +22,7 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json",
     )
     app.include_router(health.router, prefix="/api")
+    app.include_router(campaigns.router, prefix="/api")
     return app
 
 
