@@ -120,3 +120,38 @@ def test_expired_token_triggers_one_relogin() -> None:
 def test_missing_credentials_rejected_early() -> None:
     with pytest.raises(ConnectorError):
         BlueskyConnector("", "")
+
+
+def opted_out(post: dict[str, object]) -> dict[str, object]:
+    author = dict(post["author"])  # type: ignore[call-overload]
+    author["labels"] = [{"val": "!no-unauthenticated"}]
+    return {**post, "author": author}
+
+
+def test_search_skips_authors_who_opted_out_of_public_visibility() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("createSession"):
+            return login_ok()
+        return httpx.Response(200, json={"posts": [api_post(1), opted_out(api_post(2))]})
+
+    posts = make_connector(handler).search("baby", limit=5)
+
+    assert [p.external_id[-5:] for p in posts] == ["rkey1"]
+
+
+def test_still_available_returns_only_posts_bluesky_still_has() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("createSession"):
+            return login_ok()
+        seen.append(request)
+        # rkey2 was deleted by its author, rkey3's author opted out: both missing.
+        return httpx.Response(200, json={"posts": [api_post(1), opted_out(api_post(3))]})
+
+    uris = [str(api_post(n)["uri"]) for n in (1, 2, 3)]
+    available = make_connector(handler).still_available(uris)
+
+    assert available == {uris[0]}
+    assert seen[0].url.path == "/xrpc/app.bsky.feed.getPosts"
+    assert seen[0].url.params.get_list("uris") == uris

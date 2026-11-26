@@ -7,6 +7,7 @@ The UI marks every sample post with a "Sample" badge.
 """
 
 import json
+from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -45,6 +46,10 @@ class SampleConnector:
             matches.append(post)
         matches.sort(key=lambda p: p.posted_at, reverse=True)  # newest first
         return matches[:limit]
+
+    def still_available(self, external_ids: Sequence[str]) -> set[str]:
+        known = {item["id"] for item in self._posts}
+        return {i for i in external_ids if i in known}
 
     def _to_post(self, item: dict[str, Any], query: str) -> NormalizedPost:
         return NormalizedPost(

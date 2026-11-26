@@ -7,7 +7,8 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import selectinload
 
 from app.ai.client import AIError, StructuredLLM
-from app.api.deps import DbSession, get_ai
+from app.api.deps import DbSession, get_ai, get_connector_factory
+from app.connectors.registry import ConnectorFactory
 from app.core.config import Settings, get_settings
 from app.db.enums import LifeEvent, OutreachRecommendation, Platform, PostStatus, Sensitivity
 from app.db.models import AuditEvent, Campaign, Draft, Post, PostAnalysis
@@ -23,12 +24,14 @@ from app.schemas.post import (
 )
 from app.services import drafts as workflow
 from app.services.drafts import WorkflowError
+from app.services.privacy import delete_post_data, ensure_still_available
 from app.services.triage import triage_posts
 
 router = APIRouter(tags=["posts"])
 
 AI = Annotated[StructuredLLM | None, Depends(get_ai)]
 AppSettings = Annotated[Settings, Depends(get_settings)]
+Connectors = Annotated[ConnectorFactory, Depends(get_connector_factory)]
 
 
 # ---- helpers -----------------------------------------------------------------
@@ -54,6 +57,15 @@ def _require_ai(ai: StructuredLLM | None) -> StructuredLLM:
             status.HTTP_503_SERVICE_UNAVAILABLE, "AI is not configured on the server."
         )
     return ai
+
+
+def _require_still_available(db: DbSession, post: Post, connectors: ConnectorFactory) -> None:
+    """Never draft or approve a reply to a post its author has deleted."""
+    if not ensure_still_available(db, post, connectors):
+        raise HTTPException(
+            status.HTTP_410_GONE,
+            "The author removed this post, so its data has been deleted from the app.",
+        )
 
 
 def _detail(db: DbSession, post: Post) -> PostDetail:
@@ -165,17 +177,24 @@ def create_drafts(
     db: DbSession,
     ai: AI,
     settings: AppSettings,
+    connectors: Connectors,
     payload: GenerateDraftsRequest | None = None,
 ) -> PostDetail:
     post = _post_or_404(db, post_id)
+    llm = _require_ai(ai)
+    _require_still_available(db, post, connectors)
     instruction = payload.instruction if payload else None
     try:
-        workflow.generate_drafts(
-            db, post, _require_ai(ai), settings.claude_draft_model, instruction
-        )
+        workflow.generate_drafts(db, post, llm, settings.claude_draft_model, instruction)
     except AIError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
     return _detail(db, post)
+
+
+@router.delete("/posts/{post_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_post(post_id: int, db: DbSession) -> None:
+    """Delete a post and everything derived from it (analysis, drafts)."""
+    delete_post_data(db, _post_or_404(db, post_id), "user_request")
 
 
 @router.post("/posts/{post_id}/replied", response_model=PostDetail)
@@ -207,9 +226,11 @@ def update_draft(draft_id: int, payload: DraftUpdate, db: DbSession) -> Draft:
 
 
 @router.post("/drafts/{draft_id}/approve", response_model=DraftRead)
-def approve(draft_id: int, db: DbSession) -> Draft:
+def approve(draft_id: int, db: DbSession, connectors: Connectors) -> Draft:
+    draft = _draft_or_404(db, draft_id)
+    _require_still_available(db, draft.post, connectors)
     try:
-        return workflow.approve_draft(db, _draft_or_404(db, draft_id))
+        return workflow.approve_draft(db, draft)
     except WorkflowError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
 

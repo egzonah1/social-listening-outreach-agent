@@ -2,9 +2,10 @@
 
 The rest of the app only knows about `SourceConnector` and `NormalizedPost`,
 never about Bluesky or Mastodon JSON. Adding a platform means adding one
-module that implements `search()`; nothing else changes.
+module that implements `search()` and `still_available()`; nothing else changes.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
@@ -47,4 +48,12 @@ class SourceConnector(Protocol):
         language: str | None = None,
     ) -> list[NormalizedPost]:
         """Return public posts matching `query` (a keyword, phrase or #hashtag)."""
+        ...
+
+    def still_available(self, external_ids: Sequence[str]) -> set[str]:
+        """Return the ids that are still public at the source.
+
+        Used before drafting or approving a reply: if the author deleted the post
+        (or hid their account), we remove our copy instead of replying to it.
+        """
         ...

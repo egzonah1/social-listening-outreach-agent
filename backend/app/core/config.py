@@ -8,7 +8,7 @@ a typo such as LOG_LEVEL=LOUD fails immediately instead of at 2 a.m.
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,6 +34,12 @@ class Settings(BaseSettings):
 
     bluesky_handle: str | None = None
     bluesky_app_password: SecretStr | None = None
+
+    # Data protection. Bluesky's developer guidelines ask apps to publish a contact
+    # address and to delete content on request; collected posts are also deleted
+    # automatically after `retention_days`.
+    contact_email: str | None = None
+    retention_days: int = Field(default=30, ge=1, le=365)
 
 
 @lru_cache

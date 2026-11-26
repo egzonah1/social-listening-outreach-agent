@@ -6,8 +6,14 @@ Search needs an authenticated session (the public endpoint can refuse
 unauthenticated search under load), so we log in with an *app password*
 from a dedicated account. The connector only ever calls read endpoints:
 it cannot post, like or message anyone.
+
+Respecting authors' choices: Bluesky lets people ask that their posts are not
+shown to logged-out viewers (the "!no-unauthenticated" self-label). We are
+logged in, so we could see them, but we skip those accounts anyway: the person
+has said they don't want wide visibility.
 """
 
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -18,6 +24,8 @@ from app.db.enums import Platform
 
 DEFAULT_SERVICE = "https://bsky.social"
 MAX_PAGE_SIZE = 100  # API maximum for searchPosts
+MAX_URIS_PER_LOOKUP = 25  # API maximum for getPosts
+OPT_OUT_LABEL = "!no-unauthenticated"
 
 
 class BlueskyConnector:
@@ -66,11 +74,21 @@ class BlueskyConnector:
 
             data = self._get("/xrpc/app.bsky.feed.searchPosts", params)
             posts = data.get("posts", [])
-            results.extend(self._normalize(p, query) for p in posts)
+            results.extend(self._normalize(p, query) for p in posts if not _opted_out(p))
             cursor = data.get("cursor")
             if not cursor or not posts:
                 break
         return results[:limit]
+
+    def still_available(self, external_ids: Sequence[str]) -> set[str]:
+        """Look posts up by URI. Deleted posts are simply missing from the answer."""
+        available: set[str] = set()
+        ids = list(external_ids)
+        for start in range(0, len(ids), MAX_URIS_PER_LOOKUP):
+            chunk = ids[start : start + MAX_URIS_PER_LOOKUP]
+            data = self._get("/xrpc/app.bsky.feed.getPosts", {"uris": chunk})
+            available.update(p["uri"] for p in data.get("posts", []) if not _opted_out(p))
+        return available
 
     # ---- internals --------------------------------------------------------
 
@@ -84,7 +102,7 @@ class BlueskyConnector:
         self._raise_for_status(response)
         self._access_token = response.json()["accessJwt"]
 
-    def _get(self, path: str, params: dict[str, str | int]) -> dict[str, Any]:
+    def _get(self, path: str, params: Mapping[str, str | int | list[str]]) -> dict[str, Any]:
         if self._access_token is None:
             self._login()
         response = self._client.get(path, params=params, headers=self._auth_header())
@@ -128,6 +146,11 @@ class BlueskyConnector:
             repost_count=post.get("repostCount", 0),
             matched_keyword=query,
         )
+
+
+def _opted_out(post: dict[str, Any]) -> bool:
+    labels = post.get("author", {}).get("labels") or []
+    return any(label.get("val") == OPT_OUT_LABEL for label in labels)
 
 
 def _is_expired_token(response: httpx.Response) -> bool:

@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from datetime import UTC, datetime
 
 from sqlalchemy import func, select
@@ -14,6 +15,9 @@ class FailingConnector:
     platform = Platform.BLUESKY
 
     def search(self, query: str, **kwargs: object) -> list[NormalizedPost]:
+        raise ConnectorError("Bluesky rate limit reached.")
+
+    def still_available(self, external_ids: Sequence[str]) -> set[str]:
         raise ConnectorError("Bluesky rate limit reached.")
 
 
