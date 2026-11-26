@@ -8,7 +8,7 @@ import httpx2 as httpx
 import pytest
 
 from app.ai.client import AIError
-from app.ai.gemini import ATTEMPTS_PER_MODEL, AIUnavailable, GeminiClient
+from app.ai.gemini import AIUnavailable, GeminiClient
 from app.ai.schemas import DraftSet, TriageBatch
 
 Handler = Callable[[httpx.Request], httpx.Response]
@@ -30,12 +30,32 @@ def error(code: int, status: str, message: str = "nope") -> httpx.Response:
     )
 
 
-def make_client(handler: Handler, backups: dict[str, str] | None = None) -> GeminiClient:
+class FakeClock:
+    """Time that only moves when a test (or the fake network) moves it."""
+
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.now += seconds
+
+
+def make_client(
+    handler: Handler,
+    backups: dict[str, list[str]] | None = None,
+    clock: FakeClock | None = None,
+) -> GeminiClient:
+    clock = clock or FakeClock()
     return GeminiClient(
         "test-key",
         backup_models=backups,
+        time_budget_seconds=45,
         http_client=httpx.Client(transport=httpx.MockTransport(handler)),
-        sleep=lambda seconds: None,  # don't really wait between retries
+        clock=clock,
+        sleep=clock.sleep,
     )
 
 
@@ -63,7 +83,7 @@ def test_parses_structured_output_and_sends_expected_request() -> None:
     assert config["responseMimeType"] == "application/json"
     assert config["responseJsonSchema"]["title"] == "DraftSet"
     thinking = config["thinkingConfig"]  # the SDK sends this one in snake_case
-    assert (thinking.get("thinkingLevel") or thinking.get("thinking_level")) == "MINIMAL"
+    assert (thinking.get("thinkingLevel") or thinking.get("thinking_level")) == "LOW"
 
 
 def test_schema_with_nested_models_and_enums_is_sent() -> None:
@@ -115,7 +135,7 @@ def test_free_tier_limit_becomes_clear_error() -> None:
         call(client)
 
 
-def test_server_error_is_retried_then_becomes_clear_error() -> None:
+def test_busy_model_without_backup_becomes_clear_error_at_once() -> None:
     calls: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -124,10 +144,10 @@ def test_server_error_is_retried_then_becomes_clear_error() -> None:
 
     with pytest.raises(AIUnavailable, match=r"busy .*\(503\)"):
         call(make_client(handler))
-    assert len(calls) == ATTEMPTS_PER_MODEL
+    assert len(calls) == 1  # no waiting on a busy model
 
 
-def test_dropped_connection_is_retried() -> None:
+def test_dropped_connection_is_retried_once_on_the_same_model() -> None:
     attempts: list[int] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -144,25 +164,53 @@ def test_dropped_connection_is_retried() -> None:
     assert client.last_model_used == "gemini-test"
 
 
-def test_backup_model_is_used_when_main_model_is_busy() -> None:
+def test_busy_model_goes_straight_to_the_backup_models_in_order() -> None:
+    paths: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        name = request.url.path.rsplit("/", 1)[1].split(":")[0]
+        paths.append(name)
+        if name == "gemini-test":
+            return error(503, "UNAVAILABLE")
+        if name == "backup-1":
+            raise httpx.ReadTimeout("slow")
+        return httpx.Response(200, json=answer(json.dumps(DRAFTS)))
+
+    client = make_client(handler, backups={"gemini-test": ["backup-1", "backup-2"]})
+    result = call(client)
+
+    assert result.variants[0].text == "Congratulations!"
+    assert paths == ["gemini-test", "backup-1", "backup-2"]
+    assert client.last_model_used == "backup-2"
+
+
+def test_stops_when_the_time_budget_is_used_up() -> None:
+    clock = FakeClock()
     paths: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         paths.append(request.url.path)
-        if "gemini-test:" in request.url.path:
-            return error(503, "UNAVAILABLE")
+        clock.now += 30  # every model "hangs" for 30 seconds, then times out
+        raise httpx.ReadTimeout("slow")
+
+    client = make_client(handler, backups={"gemini-test": ["b1", "b2", "b3"]}, clock=clock)
+    with pytest.raises(AIUnavailable, match="too long"):
+        call(client)
+
+    assert len(paths) == 2  # 30 s + 15 s = the 45 s budget; no third try
+    assert clock.now <= 60
+
+
+def test_each_request_gets_at_most_the_remaining_time() -> None:
+    timeouts: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        timeouts.append(request.extensions["timeout"]["read"])
         return httpx.Response(200, json=answer(json.dumps(DRAFTS)))
 
-    client = make_client(handler, backups={"gemini-test": "gemini-backup"})
-    result = call(client)
+    call(make_client(handler))
 
-    assert result.variants[0].text == "Congratulations!"
-    assert [p.rsplit("/", 1)[1] for p in paths] == [
-        "gemini-test:generateContent",
-        "gemini-test:generateContent",
-        "gemini-backup:generateContent",
-    ]
-    assert client.last_model_used == "gemini-backup"
+    assert timeouts == [30.0]
 
 
 def test_bad_request_is_not_retried() -> None:
@@ -173,5 +221,28 @@ def test_bad_request_is_not_retried() -> None:
         return error(400, "INVALID_ARGUMENT", "Bad schema.")
 
     with pytest.raises(AIError, match=r"rejected the request \(400\)"):
-        call(make_client(handler, backups={"gemini-test": "gemini-backup"}))
+        call(make_client(handler, backups={"gemini-test": ["gemini-backup"]}))
     assert len(calls) == 1
+
+
+def test_a_hanging_request_is_abandoned_at_the_hard_limit() -> None:
+    import time as real_time
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "gemini-test:" in request.url.path:
+            real_time.sleep(1.0)  # keeps "streaming" past our limit
+        return httpx.Response(200, json=answer(json.dumps(DRAFTS)))
+
+    client = GeminiClient(
+        "test-key",
+        backup_models={"gemini-test": ["gemini-backup"]},
+        request_timeout_seconds=0.2,
+        time_budget_seconds=10,
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    started = real_time.monotonic()
+    result = call(client)
+
+    assert result.variants[0].text == "Congratulations!"
+    assert client.last_model_used == "gemini-backup"
+    assert real_time.monotonic() - started < 0.9

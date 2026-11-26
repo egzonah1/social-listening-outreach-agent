@@ -38,11 +38,13 @@ class Settings(BaseSettings):
 
     # Secrets use SecretStr so they never appear in logs or error messages.
     gemini_api_key: SecretStr | None = None
-    gemini_draft_model: str = "gemini-3.8-flash"
+    # Chosen from a speed test on Nov 26: the Flash-Lite models answered in 1-5 s,
+    # while the bigger Flash models were often overloaded (503) or timed out (504).
+    gemini_draft_model: str = "gemini-3.5-flash-lite"
     gemini_triage_model: str = "gemini-3.5-flash-lite"
-    # Tried when the main model is overloaded (free-tier models often are).
-    gemini_draft_backup_model: str = "gemini-3.5-flash"
-    gemini_triage_backup_model: str = "gemini-3.1-flash-lite"
+    # Tried in order when the main model is busy or slow (comma-separated).
+    gemini_draft_backup_models: str = "gemini-3.1-flash-lite,gemini-3.5-flash"
+    gemini_triage_backup_models: str = "gemini-3.1-flash-lite"
 
     anthropic_api_key: SecretStr | None = None
     claude_draft_model: str = "claude-opus-5-5"
@@ -56,6 +58,12 @@ class Settings(BaseSettings):
     # automatically after `retention_days`.
     contact_email: str | None = None
     retention_days: int = Field(default=30, ge=1, le=365)
+
+    # Speed. After sorting, replies for the best posts are written in the background,
+    # so nobody waits when opening a post. Each AI call gets a hard time limit;
+    # after it, the backup model or the rules answer instead.
+    predraft_limit: int = Field(default=8, ge=0, le=50)
+    ai_time_budget_seconds: float = Field(default=45.0, ge=5.0, le=300.0)
 
     @property
     def triage_model(self) -> str:

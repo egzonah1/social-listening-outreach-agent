@@ -85,6 +85,8 @@ class SearchRun(TimestampMixin, Base):
     posts_found: Mapped[int] = mapped_column(Integer, default=0)
     posts_new: Mapped[int] = mapped_column(Integer, default=0)
     posts_analyzed: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # Replies written in the background right after triage, so they are ready to review.
+    posts_drafted: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     error: Mapped[str | None] = mapped_column(Text)
     # Search can succeed while AI triage fails (e.g. no API key): kept separate.
     triage_error: Mapped[str | None] = mapped_column(Text)

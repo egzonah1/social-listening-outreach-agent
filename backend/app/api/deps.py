@@ -30,6 +30,8 @@ def run_search_in_background(run_id: int) -> None:
             run_id,
             ai=build_ai_client(settings),
             triage_model=settings.triage_model,
+            draft_model=settings.draft_model,
+            predraft_limit=settings.predraft_limit,
         )
 
 

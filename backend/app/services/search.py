@@ -20,8 +20,9 @@ from sqlalchemy.orm import Session
 from app.ai.client import AIError, StructuredLLM
 from app.connectors.base import ConnectorError, NormalizedPost
 from app.connectors.registry import ConnectorFactory, get_connector
-from app.db.enums import Platform, RunStatus
-from app.db.models import Campaign, Post, SearchRun
+from app.db.enums import DraftStatus, OutreachRecommendation, Platform, RunStatus
+from app.db.models import Campaign, Draft, Post, PostAnalysis, SearchRun
+from app.services.drafts import generate_drafts
 from app.services.triage import triage_posts
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,8 @@ def execute_run(
     connector_factory: ConnectorFactory = get_connector,
     ai: StructuredLLM | None = None,
     triage_model: str = "",
+    draft_model: str = "",
+    predraft_limit: int = 0,
 ) -> SearchRun:
     run = db.get_one(SearchRun, run_id)
     campaign = run.campaign
@@ -68,13 +71,16 @@ def execute_run(
     run.source_stats = stats
     run.posts_found = total_found
     run.posts_new = total_new
-    run.status = RunStatus.FAILED if all_failed else RunStatus.COMPLETED
     run.error = "All sources failed." if all_failed else None
-    db.commit()
+    db.commit()  # posts are visible from here on; AI results appear as they finish
 
     if not all_failed:
         _triage_run_posts(db, run, ai, triage_model)
+        if ai is not None and predraft_limit > 0:
+            _predraft(db, run, ai, draft_model, predraft_limit)
 
+    # "completed" only once sorting and drafting are done, so the UI knows when to stop waiting.
+    run.status = RunStatus.FAILED if all_failed else RunStatus.COMPLETED
     run.finished_at = datetime.now(UTC)
     db.commit()
     return run
@@ -95,6 +101,33 @@ def _triage_run_posts(db: Session, run: SearchRun, ai: StructuredLLM | None, mod
     except AIError as exc:
         logger.warning("Triage failed for run %s: %s", run.id, exc)
         run.triage_error = str(exc)
+
+
+def _predraft(db: Session, run: SearchRun, ai: StructuredLLM, model: str, limit: int) -> None:
+    """Write replies for the most relevant posts now, so they're ready when someone opens them.
+
+    Only posts the triage says may be contacted, best first. A failure on one post
+    doesn't stop the others; the reviewer can still ask for drafts on demand.
+    """
+    candidates = db.scalars(
+        select(Post)
+        .join(Post.analysis)
+        .where(
+            Post.campaign_id == run.campaign_id,
+            PostAnalysis.recommendation != OutreachRecommendation.DO_NOT_CONTACT,
+            ~Post.drafts.any(Draft.status == DraftStatus.SUGGESTED),
+        )
+        .order_by(PostAnalysis.relevance.desc(), Post.posted_at.desc())
+        .limit(limit)
+    ).all()
+    for post in candidates:
+        try:
+            generate_drafts(db, post, ai, model)
+            run.posts_drafted += 1
+            db.commit()
+        except AIError as exc:
+            logger.warning("Pre-drafting failed for post %s: %s", post.id, exc)
+            db.rollback()
 
 
 def _collect(

@@ -63,6 +63,7 @@ class SearchRunRead(BaseModel):
     posts_found: int
     posts_new: int
     posts_analyzed: int
+    posts_drafted: int
     error: str | None
     triage_error: str | None
     started_at: datetime | None
