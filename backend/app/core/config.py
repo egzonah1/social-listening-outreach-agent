@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     contact_email: str | None = None
     retention_days: int = Field(default=30, ge=1, le=365)
 
+    # Folder with the built React app (`npm run build`). Empty means
+    # "<repo>/frontend/dist". If the folder is missing, only the API is served.
+    frontend_dist: str = ""
+
     # Speed. After sorting, replies for the best posts are written in the background,
     # so nobody waits when opening a post. Each AI call gets a hard time limit;
     # after it, the backup model or the rules answer instead.
