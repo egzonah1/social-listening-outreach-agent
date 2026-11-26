@@ -13,13 +13,16 @@ import logging
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from app.ai.client import AIError, StructuredLLM
 from app.connectors.base import ConnectorError, NormalizedPost
 from app.connectors.registry import ConnectorFactory, get_connector
 from app.db.enums import Platform, RunStatus
 from app.db.models import Campaign, Post, SearchRun
+from app.services.triage import triage_posts
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +38,11 @@ def create_run(db: Session, campaign: Campaign) -> SearchRun:
 
 
 def execute_run(
-    db: Session, run_id: int, connector_factory: ConnectorFactory = get_connector
+    db: Session,
+    run_id: int,
+    connector_factory: ConnectorFactory = get_connector,
+    ai: StructuredLLM | None = None,
+    triage_model: str = "",
 ) -> SearchRun:
     run = db.get_one(SearchRun, run_id)
     campaign = run.campaign
@@ -63,9 +70,31 @@ def execute_run(
     run.posts_new = total_new
     run.status = RunStatus.FAILED if all_failed else RunStatus.COMPLETED
     run.error = "All sources failed." if all_failed else None
+    db.commit()
+
+    if not all_failed:
+        _triage_run_posts(db, run, ai, triage_model)
+
     run.finished_at = datetime.now(UTC)
     db.commit()
     return run
+
+
+def _triage_run_posts(db: Session, run: SearchRun, ai: StructuredLLM | None, model: str) -> None:
+    """Analyse this campaign's posts that have no analysis yet."""
+    if ai is None:
+        run.triage_error = "AI triage is not configured (no Anthropic API key)."
+        return
+    pending = db.scalars(
+        select(Post)
+        .where(Post.campaign_id == run.campaign_id, ~Post.analysis.has())
+        .order_by(Post.posted_at.desc())
+    ).all()
+    try:
+        run.posts_analyzed = triage_posts(db, pending, ai, model)
+    except AIError as exc:
+        logger.warning("Triage failed for run %s: %s", run.id, exc)
+        run.triage_error = str(exc)
 
 
 def _collect(

@@ -62,7 +62,9 @@ class SearchRunRead(BaseModel):
     source_stats: dict[str, Any]
     posts_found: int
     posts_new: int
+    posts_analyzed: int
     error: str | None
+    triage_error: str | None
     started_at: datetime | None
     finished_at: datetime | None
     created_at: datetime
