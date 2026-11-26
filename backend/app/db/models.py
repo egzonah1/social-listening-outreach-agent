@@ -150,7 +150,7 @@ class PostAnalysis(TimestampMixin, Base):
     recommendation: Mapped[OutreachRecommendation] = mapped_column(str_enum(OutreachRecommendation))
     reason: Mapped[str] = mapped_column(Text)  # why the model decided this, shown to the user
     summary: Mapped[str] = mapped_column(Text)
-    model: Mapped[str] = mapped_column(String(64))  # which Claude model produced it
+    model: Mapped[str] = mapped_column(String(64))  # which AI model (or "rules") produced it
 
     post: Mapped[Post] = relationship(back_populates="analysis")
 

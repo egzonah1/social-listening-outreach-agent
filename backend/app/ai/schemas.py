@@ -1,4 +1,4 @@
-"""Shapes Claude must return. Structured outputs guarantee valid JSON in this
+"""Shapes the AI must return. Structured outputs guarantee valid JSON in this
 shape; Pydantic then validates it again (e.g. relevance between 0 and 100)."""
 
 from typing import Literal

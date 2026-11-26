@@ -1,9 +1,10 @@
-"""A small wrapper around the Claude API.
+"""The AI interface the app uses, and its Claude version.
 
-Every AI call in the app goes through `ClaudeClient.parse()`, which asks Claude
-for output matching a Pydantic model (structured outputs) and returns that
-validated object. Keeping all API details here means the services never deal
-with HTTP errors, refusals or SDK specifics, and tests can swap in a fake.
+Every AI call in the app goes through `parse()`, which asks a model for output
+matching a Pydantic model (structured outputs) and returns that validated
+object. Services only know the `StructuredLLM` interface, so the provider can
+be swapped (Gemini in `gemini.py`, Claude here, keyword rules in `rules.py`)
+without touching them, and tests can swap in a fake.
 """
 
 import logging
@@ -11,8 +12,6 @@ from typing import Literal, Protocol, TypeVar
 
 import anthropic
 from pydantic import BaseModel, ValidationError
-
-from app.core.config import Settings
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +39,12 @@ class StructuredLLM(Protocol):
         effort: Effort = "medium",
         max_tokens: int = 4000,
     ) -> T: ...
+
+
+def model_used(ai: StructuredLLM, requested: str) -> str:
+    """The name to save with a result. A FallbackLLM records when its backup answered."""
+    actual = getattr(ai, "last_model_used", None)
+    return actual if isinstance(actual, str) else requested
 
 
 class ClaudeClient:
@@ -89,11 +94,3 @@ class ClaudeClient:
             raise AIError("The AI response was incomplete. Please try again.")
         result: T = response.parsed_output
         return result
-
-
-def build_ai_client(settings: Settings) -> StructuredLLM | None:
-    """Returns None when no API key is configured, so the app still runs without AI."""
-    if settings.anthropic_api_key is None:
-        return None
-    key = settings.anthropic_api_key.get_secret_value()
-    return ClaudeClient(key) if key else None

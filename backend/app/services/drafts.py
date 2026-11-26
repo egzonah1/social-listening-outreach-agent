@@ -9,7 +9,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.ai.client import StructuredLLM
+from app.ai.client import StructuredLLM, model_used
 from app.ai.guardrails import CHAR_LIMITS, check_draft
 from app.ai.prompts import DRAFT_SYSTEM, draft_user_message
 from app.ai.schemas import DraftSet
@@ -44,6 +44,7 @@ def generate_drafts(
         effort="medium",
         max_tokens=4000,
     )
+    used = model_used(ai, model)
     # Replace earlier suggestions that nobody approved; keep approved ones.
     for old in [d for d in post.drafts if d.status == DraftStatus.SUGGESTED]:
         post.drafts.remove(old)
@@ -54,7 +55,7 @@ def generate_drafts(
             tone=variant.tone,
             text=variant.text.strip(),
             original_text=variant.text.strip(),
-            model=model,
+            model=used,
             warnings=check_draft(variant.text, post.platform, recommendation),
         )
         for variant in result.variants

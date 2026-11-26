@@ -6,7 +6,8 @@ from typing import Annotated
 from fastapi import Depends
 from sqlalchemy.orm import Session
 
-from app.ai.client import StructuredLLM, build_ai_client
+from app.ai.client import StructuredLLM
+from app.ai.factory import build_ai_client
 from app.connectors.registry import ConnectorFactory, get_connector
 from app.core.config import get_settings
 from app.db.session import get_db, get_sessionmaker
@@ -28,7 +29,7 @@ def run_search_in_background(run_id: int) -> None:
             db,
             run_id,
             ai=build_ai_client(settings),
-            triage_model=settings.claude_triage_model,
+            triage_model=settings.triage_model,
         )
 
 

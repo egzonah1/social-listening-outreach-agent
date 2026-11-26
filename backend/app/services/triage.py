@@ -10,7 +10,7 @@ from collections.abc import Sequence
 
 from sqlalchemy.orm import Session
 
-from app.ai.client import StructuredLLM
+from app.ai.client import StructuredLLM, model_used
 from app.ai.prompts import TRIAGE_SYSTEM, triage_user_message
 from app.ai.schemas import PostTriage, TriageBatch
 from app.db.enums import OutreachRecommendation, Sensitivity
@@ -48,7 +48,7 @@ def triage_posts(db: Session, posts: Sequence[Post], ai: StructuredLLM, model: s
             post = by_id.pop(result.post_id, None)
             if post is None:
                 continue  # the model returned an id we didn't send: ignore it
-            _save(db, post, apply_safety_rules(result), model)
+            _save(db, post, apply_safety_rules(result), model_used(ai, model))
             analysed += 1
         if by_id:
             logger.warning("Triage skipped post ids %s", sorted(by_id))

@@ -11,6 +11,9 @@ from typing import Literal
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# The name saved on results produced by the keyword rules instead of an AI model.
+RULES_MODEL = "rules"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -27,7 +30,17 @@ class Settings(BaseSettings):
     # Local default matches docker-compose.yml. Production sets DATABASE_URL to Neon.
     database_url: str = "postgresql+psycopg://outreach:outreach@localhost:5433/outreach"
 
+    # AI. Gemini is the default because its free tier needs no payment card.
+    # "rules" runs without any AI service (keyword rules and reply templates).
+    ai_provider: Literal["gemini", "anthropic", "rules"] = "gemini"
+    # If the AI fails (e.g. the free daily limit is used up), use the rules instead.
+    ai_fallback_to_rules: bool = True
+
     # Secrets use SecretStr so they never appear in logs or error messages.
+    gemini_api_key: SecretStr | None = None
+    gemini_draft_model: str = "gemini-3.8-flash"
+    gemini_triage_model: str = "gemini-3.5-flash-lite"
+
     anthropic_api_key: SecretStr | None = None
     claude_draft_model: str = "claude-opus-5-5"
     claude_triage_model: str = "claude-haiku-5-5"
@@ -40,6 +53,22 @@ class Settings(BaseSettings):
     # automatically after `retention_days`.
     contact_email: str | None = None
     retention_days: int = Field(default=30, ge=1, le=365)
+
+    @property
+    def triage_model(self) -> str:
+        return {
+            "gemini": self.gemini_triage_model,
+            "anthropic": self.claude_triage_model,
+            "rules": RULES_MODEL,
+        }[self.ai_provider]
+
+    @property
+    def draft_model(self) -> str:
+        return {
+            "gemini": self.gemini_draft_model,
+            "anthropic": self.claude_draft_model,
+            "rules": RULES_MODEL,
+        }[self.ai_provider]
 
 
 @lru_cache

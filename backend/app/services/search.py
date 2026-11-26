@@ -83,7 +83,7 @@ def execute_run(
 def _triage_run_posts(db: Session, run: SearchRun, ai: StructuredLLM | None, model: str) -> None:
     """Analyse this campaign's posts that have no analysis yet."""
     if ai is None:
-        run.triage_error = "AI triage is not configured (no Anthropic API key)."
+        run.triage_error = "AI triage is not configured (no AI API key)."
         return
     pending = db.scalars(
         select(Post)

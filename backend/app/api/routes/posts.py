@@ -164,7 +164,7 @@ def get_post(post_id: int, db: DbSession) -> PostDetail:
 def analyze_post(post_id: int, db: DbSession, ai: AI, settings: AppSettings) -> PostDetail:
     post = _post_or_404(db, post_id)
     try:
-        triage_posts(db, [post], _require_ai(ai), settings.claude_triage_model)
+        triage_posts(db, [post], _require_ai(ai), settings.triage_model)
     except AIError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
     db.refresh(post)
@@ -185,7 +185,7 @@ def create_drafts(
     _require_still_available(db, post, connectors)
     instruction = payload.instruction if payload else None
     try:
-        workflow.generate_drafts(db, post, llm, settings.claude_draft_model, instruction)
+        workflow.generate_drafts(db, post, llm, settings.draft_model, instruction)
     except AIError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
     return _detail(db, post)
