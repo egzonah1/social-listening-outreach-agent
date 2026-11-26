@@ -22,7 +22,13 @@ def build_ai_client(settings: Settings) -> StructuredLLM | None:
     if not key:
         return RuleBasedLLM() if settings.ai_fallback_to_rules else None
 
-    client: StructuredLLM = (
-        GeminiClient(key) if settings.ai_provider == "gemini" else ClaudeClient(key)
-    )
+    client: StructuredLLM
+    if settings.ai_provider == "gemini":
+        backups = {
+            settings.gemini_draft_model: settings.gemini_draft_backup_model,
+            settings.gemini_triage_model: settings.gemini_triage_backup_model,
+        }
+        client = GeminiClient(key, backup_models=backups)
+    else:
+        client = ClaudeClient(key)
     return FallbackLLM(client) if settings.ai_fallback_to_rules else client

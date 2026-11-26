@@ -8,7 +8,7 @@ import httpx2 as httpx
 import pytest
 
 from app.ai.client import AIError
-from app.ai.gemini import GeminiClient
+from app.ai.gemini import ATTEMPTS_PER_MODEL, AIUnavailable, GeminiClient
 from app.ai.schemas import DraftSet, TriageBatch
 
 Handler = Callable[[httpx.Request], httpx.Response]
@@ -30,9 +30,12 @@ def error(code: int, status: str, message: str = "nope") -> httpx.Response:
     )
 
 
-def make_client(handler: Handler) -> GeminiClient:
+def make_client(handler: Handler, backups: dict[str, str] | None = None) -> GeminiClient:
     return GeminiClient(
-        "test-key", http_client=httpx.Client(transport=httpx.MockTransport(handler))
+        "test-key",
+        backup_models=backups,
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        sleep=lambda seconds: None,  # don't really wait between retries
     )
 
 
@@ -60,7 +63,7 @@ def test_parses_structured_output_and_sends_expected_request() -> None:
     assert config["responseMimeType"] == "application/json"
     assert config["responseJsonSchema"]["title"] == "DraftSet"
     thinking = config["thinkingConfig"]  # the SDK sends this one in snake_case
-    assert (thinking.get("thinkingLevel") or thinking.get("thinking_level")) == "LOW"
+    assert (thinking.get("thinkingLevel") or thinking.get("thinking_level")) == "MINIMAL"
 
 
 def test_schema_with_nested_models_and_enums_is_sent() -> None:
@@ -112,8 +115,63 @@ def test_free_tier_limit_becomes_clear_error() -> None:
         call(client)
 
 
-def test_server_error_becomes_clear_error() -> None:
-    client = make_client(lambda r: error(503, "UNAVAILABLE"))
+def test_server_error_is_retried_then_becomes_clear_error() -> None:
+    calls: list[str] = []
 
-    with pytest.raises(AIError, match=r"error \(503\)"):
-        call(client)
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        return error(503, "UNAVAILABLE", "This model is currently experiencing high demand.")
+
+    with pytest.raises(AIUnavailable, match=r"busy .*\(503\)"):
+        call(make_client(handler))
+    assert len(calls) == ATTEMPTS_PER_MODEL
+
+
+def test_dropped_connection_is_retried() -> None:
+    attempts: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise httpx.RemoteProtocolError("Server disconnected without sending a response.")
+        return httpx.Response(200, json=answer(json.dumps(DRAFTS)))
+
+    client = make_client(handler)
+    result = call(client)
+
+    assert result.variants[0].text == "Congratulations!"
+    assert len(attempts) == 2
+    assert client.last_model_used == "gemini-test"
+
+
+def test_backup_model_is_used_when_main_model_is_busy() -> None:
+    paths: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        paths.append(request.url.path)
+        if "gemini-test:" in request.url.path:
+            return error(503, "UNAVAILABLE")
+        return httpx.Response(200, json=answer(json.dumps(DRAFTS)))
+
+    client = make_client(handler, backups={"gemini-test": "gemini-backup"})
+    result = call(client)
+
+    assert result.variants[0].text == "Congratulations!"
+    assert [p.rsplit("/", 1)[1] for p in paths] == [
+        "gemini-test:generateContent",
+        "gemini-test:generateContent",
+        "gemini-backup:generateContent",
+    ]
+    assert client.last_model_used == "gemini-backup"
+
+
+def test_bad_request_is_not_retried() -> None:
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return error(400, "INVALID_ARGUMENT", "Bad schema.")
+
+    with pytest.raises(AIError, match=r"rejected the request \(400\)"):
+        call(make_client(handler, backups={"gemini-test": "gemini-backup"}))
+    assert len(calls) == 1

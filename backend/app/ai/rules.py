@@ -18,7 +18,7 @@ from typing import TypeVar, cast
 
 from pydantic import BaseModel
 
-from app.ai.client import AIError, Effort, StructuredLLM
+from app.ai.client import AIError, Effort, StructuredLLM, model_used
 from app.ai.schemas import DraftSet, DraftVariant, PostTriage, TriageBatch
 from app.core.config import RULES_MODEL
 from app.db.enums import LifeEvent, OutreachRecommendation, Sensitivity
@@ -229,7 +229,7 @@ class FallbackLLM:
                 effort=effort,
                 max_tokens=max_tokens,
             )
-            self.last_model_used = model
+            self.last_model_used = model_used(self._primary, model)
         except AIError as exc:
             logger.warning("AI call failed (%s); using the backup rules instead.", exc)
             result = self._backup.parse(

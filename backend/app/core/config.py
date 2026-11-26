@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr | None = None
     gemini_draft_model: str = "gemini-3.8-flash"
     gemini_triage_model: str = "gemini-3.5-flash-lite"
+    # Tried when the main model is overloaded (free-tier models often are).
+    gemini_draft_backup_model: str = "gemini-3.5-flash"
+    gemini_triage_backup_model: str = "gemini-3.1-flash-lite"
 
     anthropic_api_key: SecretStr | None = None
     claude_draft_model: str = "claude-opus-5-5"

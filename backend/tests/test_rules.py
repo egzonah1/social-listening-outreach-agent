@@ -154,3 +154,30 @@ def test_factory_picks_provider_from_settings() -> None:
     assert isinstance(no_fallback, GeminiClient)
     assert isinstance(no_key, RuleBasedLLM)
     assert off is None
+
+
+def test_fallback_records_the_backup_model_that_answered(db: Session) -> None:
+    posts = make_posts(db, 1)
+
+    class BackupAnswered(FakeLLM):
+        last_model_used = "gemini-backup"
+
+    def respond(schema: type, user: str) -> TriageBatch:
+        post_id = json.loads(user.split("<posts>\n")[1].split("\n</posts>")[0])[0]["post_id"]
+        return TriageBatch(
+            results=[
+                PostTriage(
+                    post_id=post_id,
+                    relevance=90,
+                    life_event=LifeEvent.NEW_BABY,
+                    sensitivity=Sensitivity.LOW,
+                    recommendation=Rec.ENGAGE,
+                    reason="r",
+                    summary="s",
+                )
+            ]
+        )
+
+    triage_posts(db, posts, FallbackLLM(BackupAnswered(responder=respond)), model="gemini-test")
+
+    assert posts[0].analysis and posts[0].analysis.model == "gemini-backup"
