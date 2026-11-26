@@ -130,6 +130,7 @@ export interface Meta {
   version: string
   contact_email: string | null
   retention_days: number
+  access_code_required: boolean
 }
 
 export interface PostFilters {

@@ -6,6 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from sqlalchemy import select
 
 from app.api.deps import DbSession, RunLauncher, get_run_launcher
+from app.api.guards import limit_searches
 from app.db.models import Campaign, SearchRun
 from app.schemas.campaign import CampaignCreate, CampaignRead, CampaignUpdate, SearchRunRead
 from app.services.search import create_run
@@ -61,6 +62,7 @@ def delete_campaign(campaign_id: int, db: DbSession) -> Response:
     "/campaigns/{campaign_id}/runs",
     response_model=SearchRunRead,
     status_code=status.HTTP_202_ACCEPTED,
+    dependencies=[Depends(limit_searches)],
 )
 def start_run(
     campaign_id: int,

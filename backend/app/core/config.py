@@ -8,7 +8,7 @@ a typo such as LOG_LEVEL=LOUD fails immediately instead of at 2 a.m.
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # The name saved on results produced by the keyword rules instead of an AI model.
@@ -63,11 +63,29 @@ class Settings(BaseSettings):
     # "<repo>/frontend/dist". If the folder is missing, only the API is served.
     frontend_dist: str = ""
 
+    # Public demo protection (see app/api/guards.py). Empty ACCESS_CODE = open
+    # (fine on your own computer). Limits of 0 switch that limit off.
+    access_code: SecretStr | None = None
+    searches_per_hour: int = Field(default=10, ge=0)
+    searches_per_day_total: int = Field(default=100, ge=0)
+    ai_actions_per_hour: int = Field(default=60, ge=0)
+    ai_actions_per_day_total: int = Field(default=400, ge=0)
+
     # Speed. After sorting, replies for the best posts are written in the background,
     # so nobody waits when opening a post. Each AI call gets a hard time limit;
     # after it, the backup model or the rules answer instead.
     predraft_limit: int = Field(default=8, ge=0, le=50)
     ai_time_budget_seconds: float = Field(default=45.0, ge=5.0, le=300.0)
+
+    @field_validator("database_url")
+    @classmethod
+    def use_psycopg_driver(cls, url: str) -> str:
+        """Neon and Render hand out "postgresql://..." (or "postgres://...") URLs.
+        SQLAlchemy needs the driver name, so add it instead of failing at startup."""
+        for prefix in ("postgres://", "postgresql://"):
+            if url.startswith(prefix):
+                return "postgresql+psycopg://" + url.removeprefix(prefix)
+        return url
 
     @property
     def triage_model(self) -> str:

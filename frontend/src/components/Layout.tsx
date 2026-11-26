@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 import { Radar, ShieldCheck } from 'lucide-react'
 import { Link, Outlet } from 'react-router-dom'
 import { api } from '../lib/api'
+import { AccessGate } from './AccessGate'
+import { Spinner } from './ui'
 
 export function Layout() {
   const meta = useQuery({ queryKey: ['meta'], queryFn: api.meta, staleTime: Infinity })
@@ -23,7 +25,14 @@ export function Layout() {
       </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
-        <Outlet />
+        {meta.isPending ? (
+          <Spinner />
+        ) : (
+          // If /api/meta fails, show the app anyway: its own error boxes explain the problem.
+          <AccessGate required={meta.data?.access_code_required ?? false}>
+            <Outlet />
+          </AccessGate>
+        )}
       </main>
 
       <footer className="border-t border-slate-200 bg-white">

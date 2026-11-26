@@ -1,0 +1,33 @@
+# Render Blueprint: describes the live app so Render can create it in one step
+# (Render dashboard > New > Blueprint > pick this repo). Free plan, no card.
+# The database is Neon (free, does not expire), so it is not defined here.
+services:
+  - type: web
+    name: outreach-agent
+    runtime: docker
+    plan: free
+    region: frankfurt # close to Neon's Frankfurt region and to the reviewers
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeployTrigger: checksPass # deploy only after the GitHub checks are green
+    envVars:
+      - key: AI_PROVIDER
+        value: gemini
+      - key: AI_FALLBACK_TO_RULES
+        value: "true"
+      - key: RETENTION_DAYS
+        value: "30"
+      # Secrets: Render asks for these once when the Blueprint is created.
+      # They are stored in Render, never in Git.
+      - key: DATABASE_URL # Neon connection string
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: BLUESKY_HANDLE
+        sync: false
+      - key: BLUESKY_APP_PASSWORD
+        sync: false
+      - key: CONTACT_EMAIL
+        sync: false
+      - key: ACCESS_CODE
+        sync: false

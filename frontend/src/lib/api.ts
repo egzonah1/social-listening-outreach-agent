@@ -2,6 +2,7 @@
 // error becomes an ApiError with the server's own message, so screens can
 // show "The author removed this post" instead of "Request failed".
 
+import { announceAccessDenied, clearAccessCode, getAccessCode } from './access'
 import type {
   Campaign,
   CampaignInput,
@@ -25,16 +26,26 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
+  const code = getAccessCode()
   try {
     response = await fetch(`/api${path}`, {
       ...init,
-      headers: { 'Content-Type': 'application/json', ...init?.headers },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(code ? { 'X-Access-Code': code } : {}),
+        ...init?.headers,
+      },
     })
   } catch {
     throw new ApiError(0, 'Cannot reach the server. Is the backend running?')
   }
   if (response.status === 204) return undefined as T
   const body: unknown = await response.json().catch(() => null)
+  if (response.status === 401) {
+    // Missing or wrong access code: forget it and show the access screen.
+    clearAccessCode()
+    announceAccessDenied()
+  }
   if (!response.ok) throw new ApiError(response.status, errorMessage(body, response.status))
   return body as T
 }

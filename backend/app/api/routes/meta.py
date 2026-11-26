@@ -16,6 +16,7 @@ class MetaResponse(BaseModel):
     version: str
     contact_email: str | None
     retention_days: int
+    access_code_required: bool
 
 
 @router.get("/meta", response_model=MetaResponse)
@@ -25,4 +26,5 @@ def meta(settings: Annotated[Settings, Depends(get_settings)]) -> MetaResponse:
         version=__version__,
         contact_email=settings.contact_email,
         retention_days=settings.retention_days,
+        access_code_required=bool(settings.access_code and settings.access_code.get_secret_value()),
     )

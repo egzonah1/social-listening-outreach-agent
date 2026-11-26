@@ -10,12 +10,14 @@ and the API share one address (no CORS setup, one free Render service).
 
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
 from app import __version__
+from app.api.guards import require_access_code
 from app.api.routes import campaigns, health, meta, posts
 from app.core.config import get_settings
+from app.core.limits import RateLimiter
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -29,10 +31,13 @@ def create_app(frontend_dir: Path | None = None) -> FastAPI:
         docs_url="/docs",
         openapi_url="/api/openapi.json",
     )
+    app.state.limiter = RateLimiter()
+    # Health and meta stay open (Render's health check and the access-code screen use them).
     app.include_router(health.router, prefix="/api")
     app.include_router(meta.router, prefix="/api")
-    app.include_router(campaigns.router, prefix="/api")
-    app.include_router(posts.router, prefix="/api")
+    protected = [Depends(require_access_code)]
+    app.include_router(campaigns.router, prefix="/api", dependencies=protected)
+    app.include_router(posts.router, prefix="/api", dependencies=protected)
 
     if frontend_dir is None:
         frontend_dir = Path(settings.frontend_dist or REPO_ROOT / "frontend" / "dist")

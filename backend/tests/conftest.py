@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_connector_factory, get_run_launcher
 from app.connectors.sample import SampleConnector
+from app.core.config import get_settings
 from app.db import models  # noqa: F401  (registers tables)
 from app.db.base import Base
 from app.db.session import get_db
@@ -61,6 +62,9 @@ def client(db: Session) -> Iterator[TestClient]:
     def launch(run_id: int) -> None:
         execute_run(db, run_id, connector_factory=lambda platform: SampleConnector())
 
+    # Tests run without an access code even if your .env sets one.
+    settings = get_settings().model_copy(update={"access_code": None})
+    app.dependency_overrides[get_settings] = lambda: settings
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_run_launcher] = lambda: launch
     app.dependency_overrides[get_connector_factory] = lambda: lambda platform: SampleConnector()

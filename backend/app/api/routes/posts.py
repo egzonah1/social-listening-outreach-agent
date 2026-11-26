@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.ai.client import AIError, StructuredLLM
 from app.api.deps import DbSession, get_ai, get_connector_factory
+from app.api.guards import limit_ai
 from app.connectors.registry import ConnectorFactory
 from app.core.config import Settings, get_settings
 from app.db.enums import LifeEvent, OutreachRecommendation, Platform, PostStatus, Sensitivity
@@ -160,7 +161,9 @@ def get_post(post_id: int, db: DbSession) -> PostDetail:
     return _detail(db, _post_or_404(db, post_id))
 
 
-@router.post("/posts/{post_id}/analyze", response_model=PostDetail)
+@router.post(
+    "/posts/{post_id}/analyze", response_model=PostDetail, dependencies=[Depends(limit_ai)]
+)
 def analyze_post(post_id: int, db: DbSession, ai: AI, settings: AppSettings) -> PostDetail:
     post = _post_or_404(db, post_id)
     try:
@@ -171,7 +174,7 @@ def analyze_post(post_id: int, db: DbSession, ai: AI, settings: AppSettings) -> 
     return _detail(db, post)
 
 
-@router.post("/posts/{post_id}/drafts", response_model=PostDetail)
+@router.post("/posts/{post_id}/drafts", response_model=PostDetail, dependencies=[Depends(limit_ai)])
 def create_drafts(
     post_id: int,
     db: DbSession,
