@@ -37,4 +37,16 @@ describe('CampaignForm', () => {
       language: 'en',
     })
   })
+  it('can search Mastodon as well as Bluesky', async () => {
+    const { onSubmit, user } = setup()
+
+    await user.type(screen.getByLabelText('Campaign name'), 'Home buyers')
+    await user.type(screen.getByLabelText(/Keywords and hashtags/), '#firsthome{Enter}')
+    await user.click(screen.getByRole('checkbox', { name: /Mastodon/ }))
+    await user.click(screen.getByRole('button', { name: 'Create campaign' }))
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ sources: ['bluesky', 'mastodon'] }),
+    )
+  })
 })

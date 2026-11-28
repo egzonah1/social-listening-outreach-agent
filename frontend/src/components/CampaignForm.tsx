@@ -8,6 +8,7 @@ import { Button, ErrorBox, Field, inputClass } from './ui'
 const PICKABLE_EVENTS = Object.keys(KEYWORD_PRESETS) as LifeEvent[]
 const SOURCES: { value: Platform; hint: string }[] = [
   { value: 'bluesky', hint: 'Real public posts via the official Bluesky API' },
+  { value: 'mastodon', hint: 'Public hashtag posts via the official Mastodon API' },
   { value: 'sample', hint: 'Hand-written demo posts, clearly labelled' },
 ]
 const MAX_KEYWORDS = 10
@@ -144,7 +145,7 @@ export function CampaignForm({ onSubmit, onCancel, submitting, error }: Props) {
       </Field>
 
       <Field label="Sources" error={touched ? problems.sources : undefined}>
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-2 sm:grid-cols-3">
           {SOURCES.map(({ value, hint }) => (
             <label
               key={value}

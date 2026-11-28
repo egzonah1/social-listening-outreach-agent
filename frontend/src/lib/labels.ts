@@ -13,7 +13,10 @@ export const LIFE_EVENTS: Record<LifeEvent, string> = {
   none: 'No life event',
 }
 
-/** Keyword ideas per life event. Hashtags work well on Bluesky. */
+/**
+ * Keyword ideas per life event. Hashtags work well on Bluesky.
+ * Mastodon turns every keyword into a hashtag ("new baby" -> #newbaby).
+ */
 export const KEYWORD_PRESETS: Partial<Record<LifeEvent, string[]>> = {
   new_baby: ['new baby', 'baby arrived', '#newborn', 'first baby'],
   home_purchase: ['bought a house', 'first home', '#newhome', 'got the keys'],
