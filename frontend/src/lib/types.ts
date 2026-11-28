@@ -153,3 +153,16 @@ export interface Overview {
   totals: { campaigns: number; posts: number; to_review: number; approved: number; replied: number }
   campaigns: CampaignSummary[]
 }
+
+export interface BlockedAuthor {
+  id: number
+  platform: Platform
+  author_handle: string
+  reason: string | null
+  created_at: string
+}
+
+export interface BlockResult {
+  blocked: BlockedAuthor
+  posts_deleted: number
+}

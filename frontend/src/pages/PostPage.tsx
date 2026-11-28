@@ -9,6 +9,7 @@ import {
   ShieldAlert,
   Sparkles,
   Trash2,
+  UserX,
 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
@@ -35,6 +36,7 @@ export function PostPage() {
   const queryClient = useQueryClient()
   const [instruction, setInstruction] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmBlock, setConfirmBlock] = useState(false)
   const key = ['post', postId]
 
   const post = useQuery({ queryKey: key, queryFn: () => api.post(postId) })
@@ -66,6 +68,17 @@ export function PostPage() {
     onSuccess: () => {
       const campaignId = post.data?.campaign_id
       void queryClient.invalidateQueries({ queryKey: ['posts', campaignId] })
+      navigate(campaignId ? `/campaigns/${campaignId}` : '/')
+    },
+  })
+
+  const block = useMutation({
+    mutationFn: () => api.blockPostAuthor(postId),
+    onSuccess: () => {
+      const campaignId = post.data?.campaign_id
+      void queryClient.invalidateQueries({ queryKey: ['posts'] })
+      void queryClient.invalidateQueries({ queryKey: ['overview'] })
+      void queryClient.invalidateQueries({ queryKey: ['blocked'] })
       navigate(campaignId ? `/campaigns/${campaignId}` : '/')
     },
   })
@@ -257,8 +270,18 @@ export function PostPage() {
             <Button variant="secondary" disabled={closed} loading={dismiss.isPending} onClick={() => dismiss.mutate()}>
               Dismiss
             </Button>
-            <div className="ml-auto">
-              {confirmDelete ? (
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              {confirmBlock ? (
+                <span className="flex items-center gap-2 text-sm">
+                  Never contact @{p.author_handle}? Their posts are deleted.
+                  <Button size="sm" variant="danger" loading={block.isPending} onClick={() => block.mutate()}>
+                    Yes, block
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setConfirmBlock(false)}>
+                    Cancel
+                  </Button>
+                </span>
+              ) : confirmDelete ? (
                 <span className="flex items-center gap-2 text-sm">
                   Delete all data for this post?
                   <Button size="sm" variant="danger" loading={remove.isPending} onClick={() => remove.mutate()}>
@@ -269,11 +292,21 @@ export function PostPage() {
                   </Button>
                 </span>
               ) : (
-                <Button variant="danger" icon={<Trash2 className="size-4" />} onClick={() => setConfirmDelete(true)}>
-                  Delete data
-                </Button>
+                <>
+                  <Button variant="danger" icon={<UserX className="size-4" />} onClick={() => setConfirmBlock(true)}>
+                    Never contact this author
+                  </Button>
+                  <Button variant="danger" icon={<Trash2 className="size-4" />} onClick={() => setConfirmDelete(true)}>
+                    Delete data
+                  </Button>
+                </>
               )}
             </div>
+            {block.isError && (
+              <div className="w-full">
+                <ErrorBox error={block.error} />
+              </div>
+            )}
           </Card>
         </div>
       </div>
