@@ -14,6 +14,7 @@ import { type ReactNode, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { DraftCard } from '../components/DraftCard'
 import { ProgressSteps } from '../components/ProgressSteps'
+import { PostPageSkeleton } from '../components/Skeletons'
 import { Avatar, Badge, Button, Card, ErrorBox, Spinner, inputClass } from '../components/ui'
 import { api } from '../lib/api'
 import { dateTime, isRulesModel, timeAgo } from '../lib/format'
@@ -69,7 +70,7 @@ export function PostPage() {
     },
   })
 
-  if (post.isPending) return <Spinner label="Loading post…" />
+  if (post.isPending) return <PostPageSkeleton />
   if (post.isError) return <ErrorBox error={post.error} onRetry={() => void post.refetch()} />
 
   const p = post.data
