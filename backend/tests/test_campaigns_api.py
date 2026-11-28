@@ -1,6 +1,10 @@
 from typing import Any
 
 from fastapi.testclient import TestClient
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.db.models import AuditEvent, Post
 
 VALID: dict[str, Any] = {
     "name": "First-time homebuyers",
@@ -48,6 +52,26 @@ def test_delete_and_missing_campaign(client: TestClient) -> None:
 
     assert client.delete(f"/api/campaigns/{created['id']}").status_code == 204
     assert client.get(f"/api/campaigns/{created['id']}").status_code == 404
+    assert client.delete(f"/api/campaigns/{created['id']}").status_code == 404
+
+
+def test_deleting_a_campaign_deletes_its_posts_and_clears_their_history(
+    client: TestClient, db: Session
+) -> None:
+    campaign = create(client)
+    client.post(f"/api/campaigns/{campaign['id']}/runs")
+    post_ids = list(db.scalars(select(Post.id).where(Post.campaign_id == campaign["id"])))
+    assert post_ids
+    db.add(AuditEvent(entity_type="post", entity_id=post_ids[0], action="x", details={"a": "b"}))
+    db.commit()
+
+    assert client.delete(f"/api/campaigns/{campaign['id']}").status_code == 204
+
+    assert db.scalars(select(Post).where(Post.id.in_(post_ids))).all() == []
+    old = db.scalars(select(AuditEvent).where(AuditEvent.action == "x")).one()
+    assert old.details == {}  # the person's words are gone from the history too
+    event = db.scalars(select(AuditEvent).where(AuditEvent.action == "campaign.deleted")).one()
+    assert event.details == {"posts": len(post_ids)}
 
 
 def test_run_collects_posts_and_reports_progress(client: TestClient) -> None:
