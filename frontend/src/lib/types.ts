@@ -152,6 +152,8 @@ export interface CampaignSummary {
 export interface Overview {
   totals: { campaigns: number; posts: number; to_review: number; approved: number; replied: number }
   campaigns: CampaignSummary[]
+  /** Posts per life event across all campaigns, most common first. */
+  life_events: { life_event: LifeEvent; posts: number }[]
 }
 
 export interface BlockedAuthor {

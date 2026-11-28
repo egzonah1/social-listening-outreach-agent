@@ -13,6 +13,7 @@ import {
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CampaignForm } from '../components/CampaignForm'
+import { LifeEventChart } from '../components/LifeEventChart'
 import { OverviewSkeleton } from '../components/Skeletons'
 import { Badge, Button, Card, ErrorBox, StatTile } from '../components/ui'
 import { api } from '../lib/api'
@@ -139,6 +140,8 @@ export function CampaignsPage() {
           </Button>
         </div>
       )}
+
+      {data && !empty && <LifeEventChart data={data.life_events} />}
 
       {data && !empty && (
         <section className="space-y-3">
