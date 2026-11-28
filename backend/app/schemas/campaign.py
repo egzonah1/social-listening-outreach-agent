@@ -90,6 +90,13 @@ class OverviewTotals(BaseModel):
     replied: int
 
 
+class LifeEventCount(BaseModel):
+    life_event: LifeEvent
+    posts: int
+
+
 class Overview(BaseModel):
     totals: OverviewTotals
     campaigns: list[CampaignSummary]
+    # Sorted posts per life event across all campaigns, most common first.
+    life_events: list[LifeEventCount]

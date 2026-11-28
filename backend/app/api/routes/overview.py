@@ -10,11 +10,12 @@ from fastapi import APIRouter
 from sqlalchemy import func, select
 
 from app.api.deps import DbSession
-from app.db.enums import OutreachRecommendation, PostStatus
+from app.db.enums import LifeEvent, OutreachRecommendation, PostStatus
 from app.db.models import Campaign, Post, PostAnalysis, SearchRun
 from app.schemas.campaign import (
     CampaignRead,
     CampaignSummary,
+    LifeEventCount,
     Overview,
     OverviewTotals,
     SearchRunRead,
@@ -59,6 +60,17 @@ def overview(db: DbSession) -> Overview:
         for run in db.scalars(select(SearchRun).join(newest, SearchRun.id == newest.c.run_id))
     }
 
+    # What people are talking about. "No life event" is left out: it isn't a lead.
+    by_event = db.execute(
+        select(PostAnalysis.life_event, func.count())
+        .where(PostAnalysis.life_event != LifeEvent.NONE)
+        .group_by(PostAnalysis.life_event)
+    ).all()
+    life_events = sorted(
+        (LifeEventCount(life_event=event, posts=n) for event, n in by_event),
+        key=lambda item: (-item.posts, item.life_event.value),
+    )
+
     summaries = [
         CampaignSummary(
             campaign=CampaignRead.model_validate(campaign),
@@ -81,4 +93,5 @@ def overview(db: DbSession) -> Overview:
             replied=sum(s.replied for s in summaries),
         ),
         campaigns=summaries,
+        life_events=life_events,
     )
