@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { PostRow } from '../components/PostRow'
 import { RunProgress } from '../components/RunProgress'
+import { PostListSkeleton } from '../components/Skeletons'
 import { Badge, Button, EmptyState, ErrorBox, Spinner, StatTile, selectClass } from '../components/ui'
 import { api } from '../lib/api'
 import { LIFE_EVENTS, PLATFORMS, POST_STATUS } from '../lib/labels'
@@ -162,7 +163,7 @@ export function CampaignPage() {
           </label>
         </div>
 
-        {posts.isPending && <Spinner label="Loading posts…" />}
+        {posts.isPending && <PostListSkeleton />}
         {posts.isError && <ErrorBox error={posts.error} onRetry={() => void posts.refetch()} />}
         {posts.data?.items.length === 0 && (
           <EmptyState title={latestRun ? 'No posts match' : 'No posts yet'}>

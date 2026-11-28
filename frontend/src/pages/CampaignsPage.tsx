@@ -13,7 +13,8 @@ import {
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CampaignForm } from '../components/CampaignForm'
-import { Badge, Button, Card, ErrorBox, Spinner, StatTile } from '../components/ui'
+import { OverviewSkeleton } from '../components/Skeletons'
+import { Badge, Button, Card, ErrorBox, StatTile } from '../components/ui'
 import { api } from '../lib/api'
 import { timeAgo } from '../lib/format'
 import { LIFE_EVENTS, PLATFORMS } from '../lib/labels'
@@ -103,7 +104,7 @@ export function CampaignsPage() {
         </Card>
       )}
 
-      {overview.isPending && <Spinner label="Loading overview…" />}
+      {overview.isPending && <OverviewSkeleton />}
       {overview.isError && (
         <ErrorBox error={overview.error} onRetry={() => void overview.refetch()} />
       )}
