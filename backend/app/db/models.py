@@ -4,6 +4,7 @@
                └─< posts ─┬── post_analyses   (one per post, written by AI triage)
                           └─< drafts          (reply suggestions, edited by a person)
     audit_events                              (append-only log of who did what)
+    blocked_authors                           (people who must never be contacted)
 
 `─<` means one-to-many. Deleting a campaign deletes its runs, posts,
 analyses and drafts (ON DELETE CASCADE), which also serves data retention.
@@ -188,6 +189,26 @@ class AuditEvent(Base):
     action: Mapped[str] = mapped_column(String(64))  # e.g. "draft.approved"
     actor: Mapped[str] = mapped_column(String(64), default="user")
     details: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class BlockedAuthor(Base):
+    """An author who must never be contacted, in any campaign.
+
+    Kept separately from posts on purpose: retention deletes posts after 30 days,
+    but a "do not contact me" has to last. Only the platform and handle are kept,
+    never what the person wrote.
+    """
+
+    __tablename__ = "blocked_authors"
+    __table_args__ = (UniqueConstraint("platform", "author_handle"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    platform: Mapped[Platform] = mapped_column(str_enum(Platform))
+    author_handle: Mapped[str] = mapped_column(String(255))
+    reason: Mapped[str | None] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
