@@ -77,4 +77,5 @@ export const AUDIT_ACTIONS: Record<string, string> = {
   'post.replied_manually': 'Marked as replied (sent by hand on the platform)',
   'post.dismissed': 'Post dismissed',
   'post.data_deleted': 'Post data deleted',
+  'author.blocked': 'Author added to the do-not-contact list',
 }

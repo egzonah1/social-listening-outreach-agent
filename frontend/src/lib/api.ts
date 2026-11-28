@@ -4,6 +4,8 @@
 
 import { announceAccessDenied, clearAccessCode, getAccessCode } from './access'
 import type {
+  BlockedAuthor,
+  BlockResult,
   Campaign,
   CampaignInput,
   CampaignStats,
@@ -12,6 +14,7 @@ import type {
   Overview,
   PostDetail,
   PostFilters,
+  Platform,
   PostPage,
   SearchRun,
 } from './types'
@@ -103,4 +106,11 @@ export const api = {
     request<Draft>(`/drafts/${id}`, { method: 'PATCH', body: JSON.stringify({ text }) }),
   approveDraft: (id: number) => request<Draft>(`/drafts/${id}/approve`, { method: 'POST' }),
   rejectDraft: (id: number) => request<Draft>(`/drafts/${id}/reject`, { method: 'POST' }),
+
+  blockedAuthors: () => request<BlockedAuthor[]>('/blocked-authors'),
+  blockAuthor: (platform: Platform, author_handle: string, reason?: string) =>
+    request<BlockResult>('/blocked-authors', json({ platform, author_handle, reason: reason || null })),
+  blockPostAuthor: (postId: number, reason?: string) =>
+    request<BlockResult>(`/posts/${postId}/block-author`, json({ reason: reason || null })),
+  unblockAuthor: (id: number) => request<void>(`/blocked-authors/${id}`, { method: 'DELETE' }),
 }

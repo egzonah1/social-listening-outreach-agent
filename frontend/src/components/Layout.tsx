@@ -5,6 +5,12 @@ import { api } from '../lib/api'
 import { AccessGate } from './AccessGate'
 import { Spinner } from './ui'
 
+function navClass({ isActive }: { isActive: boolean }) {
+  return isActive
+    ? 'rounded-md bg-slate-100 px-2.5 py-1.5 text-sm font-medium text-slate-900'
+    : 'rounded-md px-2.5 py-1.5 text-sm text-slate-500 hover:text-slate-900'
+}
+
 export function Layout() {
   const meta = useQuery({ queryKey: ['meta'], queryFn: api.meta, staleTime: Infinity })
 
@@ -18,21 +24,16 @@ export function Layout() {
             </span>
             Outreach Agent
           </Link>
-          <nav className="ml-4 hidden sm:block">
-            <NavLink
-              to="/"
-              end
-              className={({ isActive }) =>
-                isActive
-                  ? 'rounded-md bg-slate-100 px-2.5 py-1.5 text-sm font-medium text-slate-900'
-                  : 'rounded-md px-2.5 py-1.5 text-sm text-slate-500 hover:text-slate-900'
-              }
-            >
+          <nav className="ml-1 flex gap-1 sm:ml-4">
+            <NavLink to="/" end className={navClass}>
               Overview
+            </NavLink>
+            <NavLink to="/do-not-contact" className={navClass}>
+              Do not contact
             </NavLink>
           </nav>
           <span
-            className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800 ring-1 ring-brand-100"
+            className="ml-auto hidden items-center gap-1.5 rounded-full sm:inline-flex bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800 ring-1 ring-brand-100"
             title="Every reply is written for a person to review. Nothing is posted automatically."
           >
             <ShieldCheck className="size-3.5" aria-hidden />
