@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Download, Play } from 'lucide-react'
+import { ArrowLeft, Download, Play, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { PostRow } from '../components/PostRow'
 import { RunProgress } from '../components/RunProgress'
 import { PostListSkeleton } from '../components/Skeletons'
@@ -17,6 +17,8 @@ const POLL_MS = 2000
 export function CampaignPage() {
   const campaignId = Number(useParams().campaignId)
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const [confirmDelete, setConfirmDelete] = useState(false)
   const [filters, setFilters] = useState<PostFilters>({ sort: 'relevance' })
   const [page, setPage] = useState(0)
 
@@ -58,6 +60,14 @@ export function CampaignPage() {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['runs', campaignId] }),
   })
   const exportCsv = useMutation({ mutationFn: () => api.exportApproved(campaignId) })
+  const remove = useMutation({
+    mutationFn: () => api.deleteCampaign(campaignId),
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: ['campaign', campaignId] })
+      void queryClient.invalidateQueries({ queryKey: ['overview'] })
+      navigate('/')
+    },
+  })
 
   function updateFilter(change: Partial<PostFilters>) {
     setFilters({ ...filters, ...change })
@@ -92,30 +102,50 @@ export function CampaignPage() {
               ))}
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              variant="secondary"
-              icon={<Download className="size-4" />}
-              loading={exportCsv.isPending}
-              disabled={approvedCount === 0}
-              title={approvedCount === 0 ? 'Approve a reply first' : 'Approved replies as a spreadsheet (CSV)'}
-              onClick={() => exportCsv.mutate()}
-            >
-              Export approved
-            </Button>
-            <Button
-              icon={<Play className="size-4" />}
-              loading={start.isPending || running}
-              onClick={() => start.mutate()}
-            >
-              {running ? 'Searching…' : 'Run search'}
-            </Button>
-          </div>
+          {confirmDelete ? (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-900 ring-1 ring-red-200">
+              Delete "{c.name}" and its {s?.total_posts ?? 0} posts? This can't be undone.
+              <Button size="sm" variant="danger" loading={remove.isPending} onClick={() => remove.mutate()}>
+                Yes, delete campaign
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(false)}>
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="ghost"
+                icon={<Trash2 className="size-4" />}
+                aria-label="Delete campaign"
+                title="Delete campaign"
+                onClick={() => setConfirmDelete(true)}
+              />
+              <Button
+                variant="secondary"
+                icon={<Download className="size-4" />}
+                loading={exportCsv.isPending}
+                disabled={approvedCount === 0}
+                title={approvedCount === 0 ? 'Approve a reply first' : 'Approved replies as a spreadsheet (CSV)'}
+                onClick={() => exportCsv.mutate()}
+              >
+                Export approved
+              </Button>
+              <Button
+                icon={<Play className="size-4" />}
+                loading={start.isPending || running}
+                onClick={() => start.mutate()}
+              >
+                {running ? 'Searching…' : 'Run search'}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
       {start.isError && <ErrorBox error={start.error} />}
       {exportCsv.isError && <ErrorBox error={exportCsv.error} />}
+      {remove.isError && <ErrorBox error={remove.error} />}
       {latestRun && <RunProgress run={latestRun} />}
 
       {s && s.total_posts > 0 && (

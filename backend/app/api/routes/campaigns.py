@@ -10,6 +10,7 @@ from app.api.guards import limit_searches
 from app.db.models import Campaign, SearchRun
 from app.schemas.campaign import CampaignCreate, CampaignRead, CampaignUpdate, SearchRunRead
 from app.services.export import approved_replies_csv
+from app.services.privacy import delete_campaign_data
 from app.services.search import create_run
 
 router = APIRouter(tags=["campaigns"])
@@ -54,8 +55,8 @@ def update_campaign(campaign_id: int, payload: CampaignUpdate, db: DbSession) ->
 
 @router.delete("/campaigns/{campaign_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_campaign(campaign_id: int, db: DbSession) -> Response:
-    db.delete(_get_campaign_or_404(db, campaign_id))
-    db.commit()
+    """Delete a campaign with its searches, posts, analyses and drafts."""
+    delete_campaign_data(db, _get_campaign_or_404(db, campaign_id))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.connectors.base import ConnectorError
 from app.connectors.registry import ConnectorFactory
-from app.db.models import AuditEvent, Draft, Post
+from app.db.models import AuditEvent, Campaign, Draft, Post
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,28 @@ DeletionReason = Literal["user_request", "removed_at_source", "retention", "auth
 def delete_post_data(db: Session, post: Post, reason: DeletionReason) -> None:
     delete_posts(db, [post.id], reason)
     db.commit()
+
+
+def delete_campaign_data(db: Session, campaign: Campaign) -> int:
+    """Delete a campaign and everything collected for it. Returns how many posts.
+
+    Posts go through the same path as a single deletion, so the person's words
+    are also cleared from the history; then the campaign itself is removed.
+    """
+    post_ids = list(db.scalars(select(Post.id).where(Post.campaign_id == campaign.id)))
+    if post_ids:
+        delete_posts(db, post_ids, "user_request")
+    db.add(
+        AuditEvent(
+            entity_type="campaign",
+            entity_id=campaign.id,
+            action="campaign.deleted",
+            details={"posts": len(post_ids)},
+        )
+    )
+    db.delete(campaign)
+    db.commit()
+    return len(post_ids)
 
 
 def ensure_still_available(db: Session, post: Post, connector_factory: ConnectorFactory) -> bool:
