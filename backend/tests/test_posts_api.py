@@ -153,3 +153,9 @@ def test_overview_counts_each_campaign(
         "replied": 0,
     }
     assert body["campaigns"][0]["campaign"]["id"] == empty["id"]  # newest first
+    # The fake AI calls every second post "bereavement" and the rest "new home".
+    events = {e["life_event"]: e["posts"] for e in body["life_events"]}
+    assert set(events) == {"home_purchase", "bereavement"}
+    assert sum(events.values()) == stats["total_posts"]
+    counts = [e["posts"] for e in body["life_events"]]
+    assert counts == sorted(counts, reverse=True)  # most common first
