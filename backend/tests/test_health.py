@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 
+from app import __version__
 from app.core.config import Settings
 from app.main import create_app
 
@@ -12,7 +13,7 @@ def test_health_returns_ok() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ok"
-    assert body["version"] == "0.1.0"
+    assert body["version"] == __version__
 
 
 def test_unknown_route_returns_404() -> None:
