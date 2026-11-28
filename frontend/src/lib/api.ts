@@ -66,6 +66,29 @@ function errorMessage(body: unknown, status: number): string {
   return `Something went wrong (${status}).`
 }
 
+/** Download a file from the API (the access code must be sent, so a plain link won't do). */
+async function download(path: string, fallbackName: string): Promise<void> {
+  const code = getAccessCode()
+  let response: Response
+  try {
+    response = await fetch(`/api${path}`, { headers: code ? { 'X-Access-Code': code } : {} })
+  } catch {
+    throw new ApiError(0, 'Cannot reach the server. Is the backend running?')
+  }
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => null)
+    throw new ApiError(response.status, errorMessage(body, response.status))
+  }
+  const disposition = response.headers.get('Content-Disposition') ?? ''
+  const name = /filename="([^"]+)"/.exec(disposition)?.[1] ?? fallbackName
+  const url = URL.createObjectURL(await response.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = name
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 const json = (data: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(data) })
 
 function query(params: Record<string, string | number | boolean | undefined>): string {
@@ -94,6 +117,8 @@ export const api = {
   posts: (campaignId: number, filters: PostFilters, limit = 50, offset = 0) =>
     request<PostPage>(`/campaigns/${campaignId}/posts${query({ ...filters, limit, offset })}`),
   stats: (campaignId: number) => request<CampaignStats>(`/campaigns/${campaignId}/stats`),
+  exportApproved: (campaignId: number) =>
+    download(`/campaigns/${campaignId}/export.csv`, `approved-replies-campaign-${campaignId}.csv`),
 
   post: (id: number) => request<PostDetail>(`/posts/${id}`),
   generateDrafts: (id: number, instruction?: string) =>

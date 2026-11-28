@@ -53,3 +53,32 @@ describe('api', () => {
     await expect(api.deletePost(3)).resolves.toBeUndefined()
   })
 })
+
+describe('api.exportApproved', () => {
+  it('downloads the CSV with the name the server gives', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(
+        new Response('post_url\n', {
+          status: 200,
+          headers: { 'Content-Disposition': 'attachment; filename="approved-replies-campaign-7.csv"' },
+        }),
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    URL.createObjectURL = vi.fn(() => 'blob:x')
+    URL.revokeObjectURL = vi.fn()
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    await api.exportApproved(7)
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/campaigns/7/export.csv', expect.anything())
+    const link = click.mock.instances[0] as unknown as HTMLAnchorElement
+    expect(link.download).toBe('approved-replies-campaign-7.csv')
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:x')
+  })
+
+  it('turns a server error into a readable message', async () => {
+    vi.stubGlobal('fetch', () => Promise.resolve(new Response(JSON.stringify({ detail: 'Campaign not found' }), { status: 404 })))
+    await expect(api.exportApproved(1)).rejects.toThrow('Campaign not found')
+  })
+})

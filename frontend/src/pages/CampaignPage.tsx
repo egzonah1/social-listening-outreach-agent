@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Play } from 'lucide-react'
+import { ArrowLeft, Download, Play } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { PostRow } from '../components/PostRow'
@@ -57,6 +57,7 @@ export function CampaignPage() {
     mutationFn: () => api.startRun(campaignId),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['runs', campaignId] }),
   })
+  const exportCsv = useMutation({ mutationFn: () => api.exportApproved(campaignId) })
 
   function updateFilter(change: Partial<PostFilters>) {
     setFilters({ ...filters, ...change })
@@ -69,6 +70,7 @@ export function CampaignPage() {
   const total = posts.data?.total ?? 0
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const s = stats.data
+  const approvedCount = (s?.by_status.approved ?? 0) + (s?.by_status.replied ?? 0)
 
   return (
     <div className="space-y-6">
@@ -90,17 +92,30 @@ export function CampaignPage() {
               ))}
             </div>
           </div>
-          <Button
-            icon={<Play className="size-4" />}
-            loading={start.isPending || running}
-            onClick={() => start.mutate()}
-          >
-            {running ? 'Searching…' : 'Run search'}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              icon={<Download className="size-4" />}
+              loading={exportCsv.isPending}
+              disabled={approvedCount === 0}
+              title={approvedCount === 0 ? 'Approve a reply first' : 'Approved replies as a spreadsheet (CSV)'}
+              onClick={() => exportCsv.mutate()}
+            >
+              Export approved
+            </Button>
+            <Button
+              icon={<Play className="size-4" />}
+              loading={start.isPending || running}
+              onClick={() => start.mutate()}
+            >
+              {running ? 'Searching…' : 'Run search'}
+            </Button>
+          </div>
         </div>
       </div>
 
       {start.isError && <ErrorBox error={start.error} />}
+      {exportCsv.isError && <ErrorBox error={exportCsv.error} />}
       {latestRun && <RunProgress run={latestRun} />}
 
       {s && s.total_posts > 0 && (
@@ -108,7 +123,7 @@ export function CampaignPage() {
           <StatTile label="Posts collected" value={s.total_posts} />
           <StatTile label="Worth a reply" value={s.by_recommendation.engage ?? 0} />
           <StatTile label="Supportive only" value={s.by_recommendation.supportive_only ?? 0} />
-          <StatTile label="Approved replies" value={(s.by_status.approved ?? 0) + (s.by_status.replied ?? 0)} />
+          <StatTile label="Approved replies" value={approvedCount} />
         </div>
       )}
 
