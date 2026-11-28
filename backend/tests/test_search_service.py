@@ -59,3 +59,48 @@ def test_post_matching_two_keywords_is_stored_once(db: Session) -> None:
 
     stored = db.scalar(select(func.count()).select_from(Post))
     assert stored == run.posts_new == run.posts_found
+
+
+class RepeatingConnector:
+    """An author who posted the same words twice, plus a different post."""
+
+    platform = Platform.BLUESKY
+
+    def search(self, query: str, **kwargs: object) -> list[NormalizedPost]:
+        def post(external_id: str, text: str, handle: str = "joe.bsky.social") -> NormalizedPost:
+            return NormalizedPost(
+                platform=Platform.BLUESKY,
+                external_id=external_id,
+                url=f"https://bsky.app/{external_id}",
+                author_handle=handle,
+                author_display_name=None,
+                text=text,
+                language="en",
+                posted_at=datetime.now(UTC),
+                matched_keyword=query,
+            )
+
+        return [
+            post("a", "We opened our  theatre!"),
+            post("b", "we opened our theatre!"),  # same words, other post id
+            post("c", "We opened our theatre!", handle="ana.bsky.social"),  # other author
+        ]
+
+    def still_available(self, external_ids: Sequence[str]) -> set[str]:
+        return set(external_ids)
+
+
+def test_same_text_from_same_author_is_stored_once(db: Session) -> None:
+    campaign = make_campaign(db, ["bluesky"])
+
+    run = execute_run(
+        db, create_run(db, campaign).id, connector_factory=lambda p: RepeatingConnector()
+    )
+    again = execute_run(
+        db, create_run(db, campaign).id, connector_factory=lambda p: RepeatingConnector()
+    )
+
+    stored = db.scalars(select(Post.external_id).order_by(Post.external_id)).all()
+    assert stored == ["a", "c"]
+    assert run.posts_new == 2
+    assert again.posts_new == 0  # repeats are recognised in later searches too

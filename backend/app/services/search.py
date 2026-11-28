@@ -60,7 +60,8 @@ def execute_run(
         platform = Platform(source)
         try:
             posts = _collect(platform, campaign, connector_factory)
-            new = _store(db, campaign.id, run.id, drop_blocked(db, posts))
+            fresh = drop_repeated_text(db, campaign.id, drop_blocked(db, posts))
+            new = _store(db, campaign.id, run.id, fresh)
             stats[platform.value] = {"found": len(posts), "new": new, "error": None}
             total_found += len(posts)
             total_new += new
@@ -140,6 +141,41 @@ def _collect(
         for post in connector.search(keyword, limit=POSTS_PER_KEYWORD, language=campaign.language):
             unique.setdefault(post.external_id, post)  # first keyword that matched wins
     return list(unique.values())
+
+
+def _text_key(handle: str, text: str) -> tuple[str, str]:
+    """Same author + same words (ignoring case and spacing) = the same message."""
+    return handle.strip().lower(), " ".join(text.lower().split())
+
+
+def drop_repeated_text(
+    db: Session, campaign_id: int, posts: list[NormalizedPost]
+) -> list[NormalizedPost]:
+    """Skip posts whose author already said exactly this in another post.
+
+    People often post the same text twice (or delete and post it again). These
+    are different posts with different ids, so the id check doesn't catch them,
+    but a reviewer should see the message only once.
+    """
+    if not posts:
+        return posts
+    handles = {p.author_handle for p in posts}
+    seen = {
+        _text_key(handle, text)
+        for handle, text in db.execute(
+            select(Post.author_handle, Post.text).where(
+                Post.campaign_id == campaign_id, Post.author_handle.in_(handles)
+            )
+        )
+    }
+    unique: list[NormalizedPost] = []
+    for post in posts:
+        key = _text_key(post.author_handle, post.text)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(post)
+    return unique
 
 
 def _store(db: Session, campaign_id: int, run_id: int, posts: list[NormalizedPost]) -> int:
