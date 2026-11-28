@@ -22,6 +22,7 @@ from app.connectors.base import ConnectorError, NormalizedPost
 from app.connectors.registry import ConnectorFactory, get_connector
 from app.db.enums import DraftStatus, OutreachRecommendation, Platform, RunStatus
 from app.db.models import Campaign, Draft, Post, PostAnalysis, SearchRun
+from app.services.blocklist import drop_blocked
 from app.services.drafts import generate_drafts
 from app.services.triage import triage_posts
 
@@ -59,7 +60,7 @@ def execute_run(
         platform = Platform(source)
         try:
             posts = _collect(platform, campaign, connector_factory)
-            new = _store(db, campaign.id, run.id, posts)
+            new = _store(db, campaign.id, run.id, drop_blocked(db, posts))
             stats[platform.value] = {"found": len(posts), "new": new, "error": None}
             total_found += len(posts)
             total_new += new

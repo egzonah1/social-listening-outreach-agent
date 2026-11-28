@@ -25,11 +25,11 @@ from app.db.models import AuditEvent, Draft, Post
 
 logger = logging.getLogger(__name__)
 
-DeletionReason = Literal["user_request", "removed_at_source", "retention"]
+DeletionReason = Literal["user_request", "removed_at_source", "retention", "author_blocked"]
 
 
 def delete_post_data(db: Session, post: Post, reason: DeletionReason) -> None:
-    _delete_posts(db, [post.id], reason)
+    delete_posts(db, [post.id], reason)
     db.commit()
 
 
@@ -55,7 +55,7 @@ def purge_expired(db: Session, retention_days: int, now: datetime | None = None)
     cutoff = (now or datetime.now(UTC)) - timedelta(days=retention_days)
     post_ids = list(db.scalars(select(Post.id).where(Post.created_at < cutoff)))
     if post_ids:
-        _delete_posts(db, post_ids, "retention")
+        delete_posts(db, post_ids, "retention")
         db.add(
             AuditEvent(
                 entity_type="system",
@@ -69,7 +69,7 @@ def purge_expired(db: Session, retention_days: int, now: datetime | None = None)
     return len(post_ids)
 
 
-def _delete_posts(db: Session, post_ids: Sequence[int], reason: DeletionReason) -> None:
+def delete_posts(db: Session, post_ids: Sequence[int], reason: DeletionReason) -> None:
     draft_ids = list(db.scalars(select(Draft.id).where(Draft.post_id.in_(post_ids))))
     # Earlier events may hold the person's words (e.g. a regenerate instruction): clear them.
     db.execute(
@@ -82,7 +82,7 @@ def _delete_posts(db: Session, post_ids: Sequence[int], reason: DeletionReason) 
         )
         .values(details={})
     )
-    actor = "user" if reason == "user_request" else "system"
+    actor = "user" if reason in ("user_request", "author_blocked") else "system"
     db.add_all(
         AuditEvent(
             entity_type="post",
