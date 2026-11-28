@@ -9,6 +9,7 @@ import type {
   CampaignStats,
   Draft,
   Meta,
+  Overview,
   PostDetail,
   PostFilters,
   PostPage,
@@ -76,6 +77,7 @@ function query(params: Record<string, string | number | boolean | undefined>): s
 export const api = {
   meta: () => request<Meta>('/meta'),
 
+  overview: () => request<Overview>('/overview'),
   campaigns: () => request<Campaign[]>('/campaigns'),
   campaign: (id: number) => request<Campaign>(`/campaigns/${id}`),
   createCampaign: (input: CampaignInput) => request<Campaign>('/campaigns', json(input)),

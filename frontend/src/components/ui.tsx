@@ -170,3 +170,68 @@ const fieldBase =
 
 export const inputClass = `block w-full ${fieldBase}`
 export const selectClass = `w-auto ${fieldBase}`
+
+/** A big number with a label, for dashboards. */
+export function StatTile({
+  label,
+  value,
+  icon,
+  highlight = false,
+}: {
+  label: string
+  value: number
+  icon?: ReactNode
+  highlight?: boolean
+}) {
+  return (
+    <Card className="px-4 py-3">
+      <p className="flex items-center gap-1.5 text-xs text-slate-500">
+        {icon}
+        {label}
+      </p>
+      <p
+        className={clsx(
+          'mt-0.5 text-2xl font-semibold tabular-nums',
+          highlight && value > 0 ? 'text-brand-700' : 'text-slate-900',
+        )}
+      >
+        {value}
+      </p>
+    </Card>
+  )
+}
+
+const AVATAR_COLORS = [
+  'bg-teal-100 text-teal-800',
+  'bg-sky-100 text-sky-800',
+  'bg-violet-100 text-violet-800',
+  'bg-amber-100 text-amber-800',
+  'bg-rose-100 text-rose-800',
+  'bg-emerald-100 text-emerald-800',
+]
+
+/** Initials in a coloured circle. The same name always gets the same colour. */
+export function Avatar({ name, size = 'md' }: { name: string; size?: 'md' | 'lg' }) {
+  const initials =
+    name
+      .replace(/^@/, '')
+      .split(/[\s._-]+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('') || '?'
+  let hash = 0
+  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
+  return (
+    <span
+      aria-hidden
+      className={clsx(
+        'grid shrink-0 place-items-center rounded-full font-semibold',
+        size === 'lg' ? 'size-11 text-base' : 'size-9 text-sm',
+        AVATAR_COLORS[hash % AVATAR_COLORS.length],
+      )}
+    >
+      {initials}
+    </span>
+  )
+}
