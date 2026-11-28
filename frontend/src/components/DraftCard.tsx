@@ -1,8 +1,16 @@
 import clsx from 'clsx'
-import { AlertTriangle, Check, Copy, X } from 'lucide-react'
+import { AlertTriangle, Check, Copy, Heart, Lightbulb, MessageCircle, X, Zap } from 'lucide-react'
 import { useState } from 'react'
 import { Badge, Button } from './ui'
 import type { Draft } from '../lib/types'
+
+// An icon and a one-line hint for each reply style, so the three drafts are easy to tell apart.
+const TONES: Record<string, { icon: typeof Heart; hint: string }> = {
+  warm: { icon: Heart, hint: 'Personal and kind' },
+  helpful: { icon: Lightbulb, hint: 'Offers help, says who you are' },
+  brief: { icon: Zap, hint: 'Short and light' },
+  supportive: { icon: Heart, hint: 'Kindness only, no offer' },
+}
 
 interface Props {
   draft: Draft
@@ -23,6 +31,8 @@ export function DraftCard({ draft, limit, busy, onSave, onApprove, onReject }: P
   const editable = draft.status === 'suggested'
   const dirty = text !== draft.text
   const tooLong = text.length > limit
+  const toneInfo = TONES[draft.tone]
+  const ToneIcon = toneInfo?.icon ?? MessageCircle
 
   async function approve() {
     if (dirty) await onSave(text) // never approve text the server hasn't checked
@@ -44,7 +54,9 @@ export function DraftCard({ draft, limit, busy, onSave, onApprove, onReject }: P
       )}
     >
       <header className="mb-2 flex items-center gap-2">
+        <ToneIcon className="size-4 text-brand-700" aria-hidden />
         <h3 className="text-sm font-semibold capitalize">{draft.tone}</h3>
+        {toneInfo && <span className="hidden text-xs text-slate-400 sm:inline">{toneInfo.hint}</span>}
         {draft.status === 'approved' && <Badge tone="green">Approved</Badge>}
         {draft.status === 'rejected' && <Badge>Rejected</Badge>}
         {draft.text !== draft.original_text && <Badge tone="blue">Edited by a person</Badge>}

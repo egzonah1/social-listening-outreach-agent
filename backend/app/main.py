@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse
 
 from app import __version__
 from app.api.guards import require_access_code
-from app.api.routes import campaigns, health, meta, posts
+from app.api.routes import campaigns, health, meta, overview, posts
 from app.core.config import get_settings
 from app.core.limits import RateLimiter
 
@@ -38,6 +38,7 @@ def create_app(frontend_dir: Path | None = None) -> FastAPI:
     protected = [Depends(require_access_code)]
     app.include_router(campaigns.router, prefix="/api", dependencies=protected)
     app.include_router(posts.router, prefix="/api", dependencies=protected)
+    app.include_router(overview.router, prefix="/api", dependencies=protected)
 
     if frontend_dir is None:
         frontend_dir = Path(settings.frontend_dist or REPO_ROOT / "frontend" / "dist")

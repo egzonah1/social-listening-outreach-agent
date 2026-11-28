@@ -13,7 +13,8 @@ import {
 import { type ReactNode, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { DraftCard } from '../components/DraftCard'
-import { Badge, Button, Card, ErrorBox, Spinner, inputClass } from '../components/ui'
+import { ProgressSteps } from '../components/ProgressSteps'
+import { Avatar, Badge, Button, Card, ErrorBox, Spinner, inputClass } from '../components/ui'
 import { api } from '../lib/api'
 import { dateTime, isRulesModel, timeAgo } from '../lib/format'
 import {
@@ -90,6 +91,8 @@ export function PostPage() {
         <ArrowLeft className="size-4" /> Back to inbox
       </Link>
 
+      <ProgressSteps post={p} />
+
       <div className="grid gap-6 lg:grid-cols-5">
         {/* Left: the post and the AI's reading of it */}
         <div className="space-y-4 lg:col-span-2">
@@ -103,10 +106,13 @@ export function PostPage() {
                 </Badge>
               )}
             </div>
-            <p className="text-sm font-medium">
-              {p.author_display_name ?? p.author_handle}{' '}
-              <span className="font-normal text-slate-500">@{p.author_handle}</span>
-            </p>
+            <div className="flex items-center gap-3">
+              <Avatar name={p.author_display_name || p.author_handle} size="lg" />
+              <p className="min-w-0 text-sm">
+                <span className="block truncate font-semibold">{p.author_display_name ?? p.author_handle}</span>
+                <span className="block truncate text-slate-500">@{p.author_handle}</span>
+              </p>
+            </div>
             <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed">{p.text}</p>
             <p className="mt-3 text-xs text-slate-500" title={dateTime(p.posted_at)}>
               Posted {timeAgo(p.posted_at)} · {p.like_count} likes · {p.reply_count} replies

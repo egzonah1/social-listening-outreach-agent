@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { PostRow } from '../components/PostRow'
 import { RunProgress } from '../components/RunProgress'
-import { Badge, Button, Card, EmptyState, ErrorBox, Spinner, selectClass } from '../components/ui'
+import { Badge, Button, EmptyState, ErrorBox, Spinner, StatTile, selectClass } from '../components/ui'
 import { api } from '../lib/api'
 import { LIFE_EVENTS, PLATFORMS, POST_STATUS } from '../lib/labels'
 import { isActive } from '../lib/run'
@@ -104,10 +104,10 @@ export function CampaignPage() {
 
       {s && s.total_posts > 0 && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="Posts collected" value={s.total_posts} />
-          <Stat label="Worth a reply" value={s.by_recommendation.engage ?? 0} />
-          <Stat label="Supportive only" value={s.by_recommendation.supportive_only ?? 0} />
-          <Stat label="Approved replies" value={(s.by_status.approved ?? 0) + (s.by_status.replied ?? 0)} />
+          <StatTile label="Posts collected" value={s.total_posts} />
+          <StatTile label="Worth a reply" value={s.by_recommendation.engage ?? 0} />
+          <StatTile label="Supportive only" value={s.by_recommendation.supportive_only ?? 0} />
+          <StatTile label="Approved replies" value={(s.by_status.approved ?? 0) + (s.by_status.replied ?? 0)} />
         </div>
       )}
 
@@ -199,14 +199,5 @@ export function CampaignPage() {
         )}
       </section>
     </div>
-  )
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return (
-    <Card className="px-4 py-3">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="mt-0.5 text-2xl font-semibold tabular-nums">{value}</p>
-    </Card>
   )
 }

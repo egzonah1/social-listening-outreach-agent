@@ -139,3 +139,17 @@ export interface PostFilters {
   include_do_not_contact?: boolean
   sort?: 'relevance' | 'newest'
 }
+
+export interface CampaignSummary {
+  campaign: Campaign
+  posts: number
+  to_review: number
+  approved: number
+  replied: number
+  last_run: SearchRun | null
+}
+
+export interface Overview {
+  totals: { campaigns: number; posts: number; to_review: number; approved: number; replied: number }
+  campaigns: CampaignSummary[]
+}

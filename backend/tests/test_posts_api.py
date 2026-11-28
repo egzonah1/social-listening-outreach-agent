@@ -120,3 +120,36 @@ def test_drafting_without_ai_key_returns_503(client: TestClient) -> None:
 
     assert response.status_code == 503
     assert "not configured" in response.json()["detail"]
+
+
+def test_overview_counts_each_campaign(
+    client: TestClient, campaign_with_posts: dict[str, Any]
+) -> None:
+    cid = campaign_with_posts["campaign"]["id"]
+    empty = client.post(
+        "/api/campaigns", json={"name": "Empty", "keywords": ["wedding"], "sources": ["sample"]}
+    ).json()
+    stats = client.get(f"/api/campaigns/{cid}/stats").json()
+    post_id = client.get(f"/api/campaigns/{cid}/posts").json()["items"][0]["id"]
+    draft_id = client.post(f"/api/posts/{post_id}/drafts").json()["drafts"][0]["id"]
+    client.post(f"/api/drafts/{draft_id}/approve")
+
+    body = client.get("/api/overview").json()
+
+    by_id = {s["campaign"]["id"]: s for s in body["campaigns"]}
+    homes = by_id[cid]
+    assert homes["posts"] == stats["total_posts"]
+    assert homes["approved"] == 1
+    # Open posts that may be contacted; "do not contact" posts are never counted.
+    assert homes["to_review"] == stats["by_recommendation"]["engage"] - 1
+    assert homes["last_run"]["status"] == "completed"
+    assert by_id[empty["id"]]["posts"] == 0
+    assert by_id[empty["id"]]["last_run"] is None
+    assert body["totals"] == {
+        "campaigns": 2,
+        "posts": homes["posts"],
+        "to_review": homes["to_review"],
+        "approved": 1,
+        "replied": 0,
+    }
+    assert body["campaigns"][0]["campaign"]["id"] == empty["id"]  # newest first
