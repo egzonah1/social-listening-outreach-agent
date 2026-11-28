@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     bluesky_handle: str | None = None
     bluesky_app_password: SecretStr | None = None
 
+    # Mastodon needs no account: public hashtag timelines are read from this server.
+    mastodon_instance: str = "https://mastodon.social"
+
     # Data protection. Bluesky's developer guidelines ask apps to publish a contact
     # address and to delete content on request; collected posts are also deleted
     # automatically after `retention_days`.
