@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Radar, ShieldCheck } from 'lucide-react'
-import { Link, Outlet } from 'react-router-dom'
+import { Link, NavLink, Outlet } from 'react-router-dom'
 import { api } from '../lib/api'
 import { AccessGate } from './AccessGate'
 import { Spinner } from './ui'
@@ -18,8 +18,25 @@ export function Layout() {
             </span>
             Outreach Agent
           </Link>
-          <span className="hidden text-sm text-slate-500 sm:inline">
-            Find life events, draft respectful replies, a person approves every message.
+          <nav className="ml-4 hidden sm:block">
+            <NavLink
+              to="/"
+              end
+              className={({ isActive }) =>
+                isActive
+                  ? 'rounded-md bg-slate-100 px-2.5 py-1.5 text-sm font-medium text-slate-900'
+                  : 'rounded-md px-2.5 py-1.5 text-sm text-slate-500 hover:text-slate-900'
+              }
+            >
+              Overview
+            </NavLink>
+          </nav>
+          <span
+            className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-800 ring-1 ring-brand-100"
+            title="Every reply is written for a person to review. Nothing is posted automatically."
+          >
+            <ShieldCheck className="size-3.5" aria-hidden />
+            Human approval required
           </span>
         </div>
       </header>
