@@ -9,6 +9,7 @@ from app.api.deps import DbSession, RunLauncher, get_run_launcher
 from app.api.guards import limit_searches
 from app.db.models import Campaign, SearchRun
 from app.schemas.campaign import CampaignCreate, CampaignRead, CampaignUpdate, SearchRunRead
+from app.services.export import approved_replies_csv
 from app.services.search import create_run
 
 router = APIRouter(tags=["campaigns"])
@@ -89,3 +90,21 @@ def get_run(run_id: int, db: DbSession) -> SearchRun:
     if run is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Search run not found")
     return run
+
+
+@router.get("/campaigns/{campaign_id}/export.csv", response_class=Response)
+def export_approved_replies(campaign_id: int, db: DbSession) -> Response:
+    """Approved replies as a CSV file (opens in Excel or Google Sheets)."""
+    campaign = _get_campaign_or_404(db, campaign_id)
+    text, count = approved_replies_csv(db, campaign)
+    filename = f"approved-replies-campaign-{campaign.id}.csv"
+    return Response(
+        # The BOM makes Excel read the file as UTF-8 (names with accents, emoji).
+        content="\ufeff" + text,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Row-Count": str(count),
+            "Cache-Control": "no-store",
+        },
+    )
