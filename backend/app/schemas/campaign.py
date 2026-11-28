@@ -69,3 +69,27 @@ class SearchRunRead(BaseModel):
     started_at: datetime | None
     finished_at: datetime | None
     created_at: datetime
+
+
+class CampaignSummary(BaseModel):
+    """One campaign on the home page, with its own numbers."""
+
+    campaign: CampaignRead
+    posts: int
+    to_review: int
+    approved: int
+    replied: int
+    last_run: SearchRunRead | None
+
+
+class OverviewTotals(BaseModel):
+    campaigns: int
+    posts: int
+    to_review: int
+    approved: int
+    replied: int
+
+
+class Overview(BaseModel):
+    totals: OverviewTotals
+    campaigns: list[CampaignSummary]
